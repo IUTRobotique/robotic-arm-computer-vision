@@ -1,0 +1,47 @@
+<mujoco model="scene_push">
+    <include file="robot.xml" />
+
+    <visual>
+        <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0" />
+        <rgba haze="0.15 0.25 0.35 1" />
+        <global azimuth="160" elevation="-20" />
+    </visual>
+
+    <asset>
+        <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0"
+            width="512" height="3072" />
+        <texture type="2d" name="groundplane" builtin="checker" mark="edge"
+            rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8"
+            width="300" height="300" />
+        <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5"
+            reflectance="0.2" />
+        <!-- Disque cible au sol -->
+        <material name="goal_mat" rgba="1 0.2 0.2 0.65" />
+        <!-- Cube PLA imprimé 3D -->
+        <material name="cube_mat" rgba="0.15 0.75 0.25 1" />
+    </asset>
+
+    <worldbody>
+        <light pos="0 0 3.5" dir="0 0 -1" directional="true" />
+        <geom name="floor" size="0 0 0.05" pos="0 0 0" type="plane"
+            material="groundplane" />
+
+        <!-- Marqueur visuel du but : disque plat mocap au sol -->
+        <!-- size = [rayon, demi-hauteur] pour un cylindre -->
+        <body name="goal_marker" mocap="true" pos="0.175 0 0.0005">
+            <geom type="cylinder" size="0.03 0.0005" material="goal_mat"
+                contype="0" conaffinity="0" group="2" />
+        </body>
+
+        <!-- Cube 27×27×27 mm, masse 5 g (PLA) avec joint libre -->
+        <!-- Inertie d'un cube plein : I = m*a²/6 = 0.005*(0.027²)/6 ≈ 6.075e-7 kg·m² -->
+        <body name="cube" pos="0.175 0 0.0135">
+            <freejoint name="cube_free" />
+            <inertial pos="0 0 0" mass="0.005"
+                diaginertia="6.075e-7 6.075e-7 6.075e-7" />
+            <!-- size = demi-côté pour un box -->
+            <geom name="cube_geom" type="box" size="0.0135 0.0135 0.0135"
+                material="cube_mat" friction="0.6 0.02 0.001" />
+        </body>
+    </worldbody>
+</mujoco>
