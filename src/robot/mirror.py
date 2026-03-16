@@ -16,7 +16,7 @@ import time
 import mujoco.viewer
 import numpy as np
 
-from env_3dofs.sim_3dofs import Sim3Dofs
+from sim_3dofs import Sim3Dofs
 
 # ── Dynamixel constants (XL-320) ──────────────────────────────────────────────
 DXL_ADDR_TORQUE_ENABLE = 24
@@ -24,7 +24,7 @@ DXL_ADDR_PRESENT_POS   = 37
 DXL_LEN_POSITION       = 2
 DXL_PROTOCOL           = 2.0
 DXL_BAUDRATE           = 1_000_000
-DXL_DEVICE             = "/dev/ttyUSB0"
+DXL_DEVICE             = "/dev/ttyACM0"
 DXL_IDS                = [1, 2, 3]
 DXL_CENTER             = 512  # raw units for 0 rad
 

@@ -2,7 +2,7 @@ import os
 from dynamixel_sdk import *
 
 # --- CONFIGURATION ---
-DEVICE_NAME          = '/dev/ttyUSB0'  # Modifier selon votre système (ex: 'COM3' sur Windows)
+DEVICE_NAME          = '/dev/ttyACM0'  # Modifier selon votre système (ex: 'COM3' sur Windows)
 BAUDRATE             = 1000000
 PROTOCOL_VERSION     = 2.0
 
@@ -27,6 +27,7 @@ print(f"Connexion établie. Alignement des moteurs sur 150° (valeur {GOAL_POSIT
 # --- ACTION ---
 try:
     for dxl_id in DXL_IDS:
+        print(f"Configuration du moteur ID {dxl_id}...")
         # Activer le couple
         packetHandler.write1ByteTxRx(portHandler, dxl_id, ADDR_TORQUE_ENABLE, TORQUE_ENABLE)
         
