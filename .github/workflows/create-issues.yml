@@ -1,0 +1,376 @@
+name: Create SAE S6 Project Issues
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-issues:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Create project issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issues = [
+              {
+                title: "Étape 1 : Préparation du matériel & de la perception",
+                body: `## Objectif
+            Préparer le matériel nécessaire et valider la chaîne de détection et localisation 3D existante pour détecter un **cube orange** et un **cylindre bleu**.
+
+            ## Prérequis
+            - Récupérer auprès de l'enseignant(e) :
+              - Un cube orange
+              - Un cylindre bleu
+              - Une caméra RealSense D435, D435i ou D435if
+            - PC Ubuntu avec GPU (salle 210)
+            - Bras robotique à assembler (voir Assemblage_robot.pdf sur Moodle)
+
+            ## Tâches
+            - [ ] Récupérer les objets et le matériel
+            - [ ] Configurer l'environnement virtuel Python
+            - [ ] Installer les packages nécessaires (pyrealsense2, opencv, ultralytics, etc.)
+            - [ ] Vérifier le bon fonctionnement de la caméra RealSense
+            - [ ] Utiliser ou adapter le dépôt Git [sae_s5_a_01_7](https://github.com/MelodieDANIEL/sae_s5_a_01_7) pour la détection 3D
+            - [ ] Entraîner/réentraîner YOLO sur le cube et le cylindre si nécessaire
+            - [ ] Refaire la base de données d'images si nécessaire
+            - [ ] Valider la détection et localisation 3D par rapport au marqueur ArUco id 6
+            - [ ] Transmettre la position 3D des objets au bras robotique
+
+            ## Ressources
+            - Dépôt de référence : https://github.com/MelodieDANIEL/sae_s5_a_01_7
+            - Librairie RealSense : https://github.com/realsenseai/librealsense
+
+            ## Évaluation
+            **2 points** sur l'évaluation technique`,
+                labels: ["étape-1", "perception", "hardware"]
+              },
+              {
+                title: "Étape 2 : Création de l'environnement de simulation (MuJoCo/Gymnasium)",
+                body: `## Objectif
+            Créer un environnement de simulation sous **MuJoCo** et l'adapter à l'interface **Gymnasium** pour entraîner un agent d'apprentissage par renforcement sur la tâche **Push-in-Hole**.
+
+            ## Connaissances préalables
+            - Un bras robotique se compose d'articulations contrôlées par des moteurs
+            - Objectif : trouver les angles moteurs pour que l'effecteur final atteigne une position 3D désirée
+            - Repère monde = repère de la base du robot (origine (0,0,0) au centre de la plaque)
+            - Repère effecteur = centre de la boule (diamètre 1 cm)
+            - Limites articulaires : [-150°, 150°] = [-2.61799, 2.61799] rad
+
+            ## Tâches
+            - [ ] Installer les packages requis :
+              \`\`\`
+              pip install mujoco stable-baselines3 gymnasium numpy sb3-contrib dynamixel-sdk onshape-to-robot pyserial placo
+              \`\`\`
+            - [ ] Télécharger le fichier \`scene_push.xml\` depuis Moodle
+            - [ ] Lancer l'environnement de base avec \`onshape-to-robot-mujoco scene_push.xml\`
+            - [ ] Étudier le fichier \`sim_3dofs.py\` (code de contrôle de base)
+            - [ ] Tester le miroir robot réel/simulation avec \`mirror.py\`
+            - [ ] Créer la classe d'environnement Gymnasium avec les méthodes :
+              - [ ] \`__init__()\` : définir \`observation_space\`, \`action_space\`, initialiser MuJoCo
+              - [ ] \`get_obs()\` : construire le vecteur d'observation (positions, vitesses, position objet, distance cible)
+              - [ ] \`reset()\` : réinitialiser la simulation
+              - [ ] \`render()\` : visualisation
+              - [ ] \`step(action)\` : appliquer l'action, avancer la simulation, calculer la récompense
+              - [ ] \`set_action(action)\` : conversion et envoi des commandes aux actionneurs
+            - [ ] Implémenter la fonction de récompense : \`reward = ma_reward + coeff * action_rate\`
+            - [ ] Tester progressivement avec des tâches simples :
+              - [ ] **Reaching** : atteindre une cible 3D
+              - [ ] **Pushing** : déplacer un objet vers une cible
+              - [ ] **Sorting** : trier des objets
+              - [ ] **Sliding** : faire glisser un objet
+              - [ ] **Push-in-Hole** : pousser un objet dans un trou
+
+            ## Ressources
+            - MuJoCo : https://mujoco.readthedocs.io/en/stable/overview.html
+            - Gymnasium : https://www.gymnasium.ai/
+            - Cours RL : https://gregwar.com/rl/
+            - Exemples Pushing : https://github.com/zichunxx/panda_mujoco_gym
+            - Fetch Push : https://robotics.farama.org/envs/fetch/push/
+
+            ## Évaluation
+            **2 points** sur l'évaluation technique`,
+                labels: ["étape-2", "simulation", "mujoco", "gymnasium"]
+              },
+              {
+                title: "Étape 3 : Étude comparative d'au moins 3 algorithmes de DRL",
+                body: `## Objectif
+            Comprendre et comparer au moins **3 algorithmes d'apprentissage par renforcement profond (DRL)** différents avant l'entraînement.
+
+            ## Algorithmes à étudier
+            - Architecture **Acteur-Critique** (choisir au moins 3) :
+              - [ ] **DDPG** (Deep Deterministic Policy Gradient)
+              - [ ] **TD3** (Twin Delayed DDPG)
+              - [ ] **SAC** (Soft Actor-Critic)
+              - [ ] **PPO** (Proximal Policy Optimization)
+            - Surcouches optionnelles :
+              - [ ] **CrossQ**
+              - [ ] **HER** (Hindsight Experience Replay)
+
+            ## Critères de comparaison
+            Pour chaque algorithme, analyser :
+            - [ ] **On-Policy vs. Off-Policy**
+            - [ ] Nombre de paramètres du réseau de neurones
+            - [ ] Fonctions d'activation et de perte
+            - [ ] Rapidité d'exécution
+            - [ ] Temps d'entraînement
+            - [ ] Courbes d'apprentissage
+            - [ ] Stabilité de l'apprentissage
+            - [ ] Sensibilité aux hyperparamètres
+
+            ## Tâches
+            - [ ] Rechercher et lire les papers originaux pour chaque algorithme
+            - [ ] Résumer les principes fondamentaux de chaque algorithme
+            - [ ] Créer un tableau comparatif des caractéristiques
+            - [ ] Identifier les algorithmes les plus adaptés à la tâche Push-in-Hole
+
+            ## Ressources
+            - ArXiv : https://arxiv.org/
+            - Towards Data Science : https://towardsdatascience.com/
+            - Medium : https://medium.com/
+            - WandB : https://wandb.ai/site/
+            - Optuna : https://github.com/optuna/optuna
+            - Stable-Baselines3 : https://stable-baselines3.readthedocs.io/
+            - RL-Zoo3 : https://rl-baselines3-zoo.readthedocs.io/
+            - Cours RL (TD3/TD4) : https://gregwar.com/rl/
+
+            ## Évaluation
+            **2 points** sur l'évaluation technique`,
+                labels: ["étape-3", "DRL", "recherche", "algorithmes"]
+              },
+              {
+                title: "Étape 4 : Entraînement avec les 3 algorithmes de RL",
+                body: `## Objectif
+            Entraîner les agents RL avec les 3 algorithmes sélectionnés sur l'environnement de simulation, en explorant les hyperparamètres.
+
+            ## Prérequis
+            - [ ] Environnement Gymnasium fonctionnel (Étape 2)
+            - [ ] 3 algorithmes étudiés et sélectionnés (Étape 3)
+
+            ## Hyperparamètres à explorer
+            - [ ] **Discount Factor** (taux d'escompte γ)
+            - [ ] **Learning Rate** (taux d'apprentissage)
+            - [ ] **Nombre de timesteps** par épisode (avec reset au-delà)
+            - [ ] **Nombre total de timesteps** d'entraînement
+            - [ ] **Taille du ReplayBuffer**
+            - [ ] **Taille du batch**
+            - [ ] **Nombre de mises à jour** (gradient descent steps)
+            - [ ] **Early Stopping** pour éviter l'overfitting (ou WandB)
+            - [ ] **Fonction de récompense** : \`reward = ma_reward + coeff * action_rate\`
+            - [ ] **Threshold** (seuil de succès)
+
+            ## Tâches
+            - [ ] Configurer les 3 algorithmes via Stable-Baselines3
+            - [ ] Implémenter le logging des métriques (WandB ou TensorBoard)
+            - [ ] Lancer les entraînements pour chaque algorithme
+            - [ ] Sauvegarder les modèles entraînés
+            - [ ] Effectuer une recherche d'hyperparamètres (optionnel : Optuna)
+            - [ ] Documenter les configurations utilisées
+
+            ## Ressources
+            - Stable-Baselines3 : https://stable-baselines3.readthedocs.io/
+            - RL-Zoo3 : https://rl-baselines3-zoo.readthedocs.io/
+            - Cours RL (TD3 & TD4) : https://gregwar.com/rl/
+            - WandB : https://wandb.ai/site/
+            - Optuna : https://github.com/optuna/optuna`,
+                labels: ["étape-4", "entraînement", "DRL", "hyperparamètres"]
+              },
+              {
+                title: "Étape 5 & 6 : Test et analyse des résultats en simulation",
+                body: `## Objectif
+            Tester les agents entraînés en simulation (sans exploration aléatoire) et comparer leurs performances.
+
+            ## Prérequis
+            - [ ] Modèles entraînés et sauvegardés (Étape 4)
+            - [ ] Environnements de simulation fonctionnels (Étape 2)
+
+            ## Procédure de test (Étape 5)
+            - [ ] Charger les modèles entraînés
+            - [ ] Exécuter en mode test (exploitation pure, sans exploration)
+            - [ ] Évaluer sur **plusieurs épisodes** (minimum 100 épisodes recommandés)
+
+            ## Métriques d'analyse (Étape 6)
+            - [ ] **Taux de succès** (Success Rate) : % d'épisodes où \`info["is_success"] = True\`
+            - [ ] **Précision** : moyenne des précisions atteintes (dépend du threshold)
+            - [ ] **Nombre de timesteps** nécessaires en moyenne pour réussir
+            - [ ] **Généralisabilité** : tester sur des configurations initiales variées
+
+            ## Tâches
+            - [ ] Écrire le script de test/évaluation
+            - [ ] Tester chaque algorithme (DDPG, TD3, SAC, etc.)
+            - [ ] Comparer les performances entre algorithmes
+            - [ ] Comparer résultats entraînement vs test (généralisation)
+            - [ ] Générer des graphiques de comparaison (courbes de récompense, taux de succès)
+            - [ ] Rédiger l'analyse des résultats
+
+            ## Évaluation
+            **4 points** sur l'évaluation technique (entraînement + test + analyse)`,
+                labels: ["étape-5", "étape-6", "test", "analyse", "simulation"]
+              },
+              {
+                title: "Étape 7 & 8 : Test en réel et analyse Sim-to-Real",
+                body: `## Objectif
+            Assembler le bras robotique réel, transférer les agents entraînés en simulation et analyser le passage Sim-to-Real.
+
+            ## Prérequis
+            - [ ] Robot assemblé (voir Assemblage_robot.pdf sur Moodle)
+            - [ ] Modèles entraînés en simulation (Étape 4)
+            - [ ] Chaîne de détection/localisation 3D fonctionnelle (Étape 1)
+
+            ## Assemblage du robot
+            - [ ] Télécharger le modèle 3D OnShape : https://cad.onshape.com/documents/9cd2d37f10a20c963aa8c3b1/...
+            - [ ] Suivre le tutoriel Assemblage_robot.pdf (disponible sur Moodle)
+            - [ ] Vérifier le montage avec \`mirror.py\`
+
+            ## Configuration bas niveau
+            - [ ] Installer setserial pour réduire les délais de communication :
+              \`\`\`bash
+              sudo apt install setserial
+              setserial /dev/ttyUSB0 low_latency  # ou ACM0 selon le modèle
+              \`\`\`
+
+            ## Tâches - Test en réel (Étape 7)
+            - [ ] Remettre les moteurs à 0° avec \`zero_dxl.py\`
+            - [ ] Tester le robot avec \`test_real_draw_forms.py\` (cercle)
+            - [ ] Commencer par un environnement simple : **Reaching** sur robot réel
+            - [ ] Ajouter du **bruit de mesure** lors de l'entraînement pour robustesse Sim-to-Real :
+              - Bruit sur la position des moteurs
+              - Bruit sur la position 0° des moteurs
+            - [ ] Tester les modèles sur le robot réel
+            - [ ] Détecter l'orientation du cube (choisir une méthode) :
+              - Marqueurs ArUco collés sur les surfaces du cube
+              - Réseau de neurones (PoseCNN, DenseFusion)
+              - Méthodes classiques : PCA sur nuage de points, RANSAC sur les 6 plans
+
+            ## Tâches - Analyse Sim-to-Real (Étape 8)
+            - [ ] Comparer les performances simulation vs réel
+            - [ ] Identifier les sources d'écart (frottements, délais, bruit capteurs)
+            - [ ] Analyser l'impact du bruit de mesure ajouté lors de l'entraînement
+            - [ ] Rédiger l'analyse comparative
+
+            ## Ressources
+            - Modèle 3D robot : https://cad.onshape.com/documents/9cd2d37f10a20c963aa8c3b1/w/751e7ec4f0185e2cc133f396/e/9a387e7c90ee018179d50e3b
+
+            ## Évaluation
+            **4 points** sur l'évaluation technique (Sim-to-Real + analyse)`,
+                labels: ["étape-7", "étape-8", "sim-to-real", "robot-réel"]
+              },
+              {
+                title: "Étape 9 : Création de l'interface graphique",
+                body: `## Objectif
+            Créer une **interface graphique** permettant de piloter l'ensemble du projet (perception, contrôle robot, monitoring).
+
+            ## Fonctionnalités suggérées
+            - [ ] Affichage du flux caméra avec détection YOLO en temps réel
+            - [ ] Affichage des coordonnées 3D des objets détectés
+            - [ ] Contrôle du robot (lancement tâche, arrêt d'urgence)
+            - [ ] Sélection de l'algorithme RL à utiliser
+            - [ ] Monitoring des performances en temps réel
+            - [ ] Visualisation de l'état du robot (angles moteurs)
+            - [ ] Logs et historique des actions
+
+            ## Outils suggérés
+            - **Streamlit** : https://streamlit.io/ *(recommandé pour prototypage rapide)*
+            - **Gradio** : https://www.gradio.app/guides/quickstart
+
+            ## Tâches
+            - [ ] Choisir le framework (Streamlit ou Gradio)
+            - [ ] Installer le framework : \`pip install streamlit\` ou \`pip install gradio\`
+            - [ ] Créer la structure de l'interface
+            - [ ] Intégrer le flux caméra et la détection
+            - [ ] Ajouter les contrôles du robot
+            - [ ] Ajouter le monitoring des métriques RL
+            - [ ] Tester l'interface complète
+
+            ## Évaluation
+            **2 points** sur l'évaluation technique`,
+                labels: ["étape-9", "interface-graphique", "UI"]
+              },
+              {
+                title: "Étape 10 : Présentation & Démonstration",
+                body: `## Objectif
+            Préparer et réaliser la soutenance finale du projet SAE S6.A.01.
+
+            ## Planning
+            - **Date** : 26 mars 2026 à partir de 13h00
+            - **Durée** : 20 à 25 minutes par groupe
+              - 10 min de présentation (dont 1-2 min de démo)
+              - 10 min de questions jury
+
+            ## Document d'auto-évaluation
+            - [ ] Rédiger l'auto-évaluation (1 page recto max) à rendre le **25 mars 2026**
+              - Noter chaque membre du groupe sur 4 points
+              - Viser une moyenne de 3/4 pour l'équipe
+              - Préciser les tâches accomplies et les défis rencontrés
+
+            ## Préparation de la présentation
+            - [ ] Tous les membres doivent parler (minimum 1 minute chacun)
+            - [ ] Préparer des **vidéos de substitution** en cas de problème technique
+            - [ ] Structure suggérée :
+              - [ ] Introduction et objectifs du projet
+              - [ ] Étape 1 : Perception et détection 3D
+              - [ ] Étape 2 : Environnement de simulation
+              - [ ] Étapes 3-4 : Algorithmes RL et entraînement
+              - [ ] Étapes 5-6 : Résultats en simulation
+              - [ ] Étapes 7-8 : Résultats sur robot réel (Sim-to-Real)
+              - [ ] Étape 9 : Interface graphique
+              - [ ] Conclusion et perspectives
+
+            ## Grille d'évaluation (16 points)
+            - [ ] 2 pts → Préparation matériel & perception
+            - [ ] 2 pts → Environnement de simulation
+            - [ ] 2 pts → Étude des algorithmes DRL
+            - [ ] 4 pts → Entraînement, test et analyse en simulé
+            - [ ] 4 pts → Passage Sim-to-Real et analyse sur robot réel
+            - [ ] 2 pts → Interface graphique
+
+            ## Tâches
+            - [ ] Créer les slides de présentation
+            - [ ] Préparer les vidéos de démonstration
+            - [ ] Répéter la présentation
+            - [ ] Synchroniser les prises de parole de chaque membre
+            - [ ] Préparer les réponses aux questions techniques probables`,
+                labels: ["étape-10", "présentation", "soutenance"]
+              }
+            ];
+
+            for (const issue of issues) {
+              // Check if issue already exists
+              const existing = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'all',
+                per_page: 100
+              });
+              
+              const alreadyExists = existing.data.some(i => i.title === issue.title);
+              if (alreadyExists) {
+                console.log(`Issue already exists: ${issue.title}`);
+                continue;
+              }
+
+              // Create labels if they don't exist
+              for (const label of issue.labels) {
+                try {
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label,
+                    color: 'ededed'
+                  });
+                } catch (e) {
+                  // Label already exists, ignore
+                }
+              }
+
+              // Create the issue
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: issue.title,
+                body: issue.body,
+                labels: issue.labels
+              });
+              console.log(`Created issue #${created.data.number}: ${issue.title}`);
+            }
