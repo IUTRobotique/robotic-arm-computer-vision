@@ -1,6 +1,6 @@
-from reaching_env import ReachingEnv                                          
+from push_env import PushEnv                                          
                                                                                 
-env = ReachingEnv(render_mode='human')
+env = PushEnv(render_mode='human')
 obs, info = env.reset()                                                       
 print('Obs initiale:', obs)
                                                                             
