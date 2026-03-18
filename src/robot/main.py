@@ -1,14 +1,14 @@
 """Lance une simulation visuelle avec le modele SAC entraine."""
 
 from stable_baselines3 import SAC
-from push_in_hole_env import PushInHoleEnv
+from robot_env.push_in_hole_env import PushInHoleEnv
 
 # Charger le modele entraine
 model = SAC.load("push_in_hole_sac")
 
 env = PushInHoleEnv(render_mode="human")
 
-for ep in range(10):
+for ep in range(100):
     obs, info = env.reset()
     done = False
     total_reward = 0.0
