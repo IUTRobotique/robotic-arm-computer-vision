@@ -7,3 +7,5 @@ __pycache__*
 CLAUDE.*
 .vscode
 *.pyc
+
+events.out.*
