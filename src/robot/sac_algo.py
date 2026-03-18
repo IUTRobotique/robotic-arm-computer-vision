@@ -27,7 +27,7 @@ from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalC
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import VecEnv
 
-from reaching_env import ReachingEnv
+from robot_env.reaching_env import ReachingEnv
 
 TOTAL_TIMESTEPS: int = 500_000
 BUFFER_SIZE: int = 1_000_000

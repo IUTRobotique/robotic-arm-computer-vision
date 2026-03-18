@@ -21,7 +21,7 @@ from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalC
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import VecEnv
 
-from reaching_env import ReachingEnv
+from robot_env.reaching_env import ReachingEnv
 
 #collecte on-policy sur plusieurs envs en parallèle pour diversifier les données
 N_ENVS: int = 4
