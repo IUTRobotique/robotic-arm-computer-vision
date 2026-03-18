@@ -25,7 +25,7 @@ GROUND_Z = 0.01
 MIN_GOAL_DIST = 0.15
 
 # Distance minimale entre le cube et le goal pour éviter qu'ils se superposent (m)
-MIN_CUBE_GOAL_DIST = 0.03
+MIN_CUBE_GOAL_DIST = 0.1
 
 # Seuil de succès (m)
 SUCCESS_THRESHOLD = 0.01  # 1 cm
