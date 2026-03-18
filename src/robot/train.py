@@ -6,7 +6,7 @@
 from stable_baselines3 import SAC
 from stable_baselines3.common.env_util import make_vec_env
 
-from push_in_hole_env import PushInHoleEnv
+from robot.robot_env.push_in_hole_env import PushInHoleEnv
 
 # Cree l'env (sans rendu pendant le training)
 env = make_vec_env(PushInHoleEnv, n_envs=1)
