@@ -18,7 +18,7 @@ import cv2
 import numpy as np
 
 # ── Chemins ────────────────────────────────────────────────────────────────────
-ROOT = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 BEST_MODEL   = os.path.join(ROOT, "runs", "detect", "detection_objets", "weights", "best.pt")
 BASE_MODEL   = os.path.join(ROOT, "yolo11n.pt")
 DATASET_IMGS = os.path.join(ROOT, "dataset_localisation", "dataset_yolo", "images")

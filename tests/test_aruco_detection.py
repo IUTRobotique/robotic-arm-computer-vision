@@ -118,7 +118,7 @@ def detecter_et_annoter(frame: np.ndarray, detector, camera_matrix, dist_coeffs)
 
 def charger_intrinsiques_realsense() -> tuple[np.ndarray, np.ndarray]:
     """Charge les intrinsèques depuis realsense_calibration.json si disponible."""
-    root    = os.path.dirname(os.path.abspath(__file__))
+    root    = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     calib_f = os.path.join(root, "realsense_calibration.json")
     if not os.path.isfile(calib_f):
         print(" realsense_calibration.json absent — utilisation des intrinsèques approx.")

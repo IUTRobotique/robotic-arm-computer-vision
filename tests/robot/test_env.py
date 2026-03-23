@@ -31,7 +31,8 @@ import numpy as np
 
 # Ajoute le dossier src/robot au path pour trouver sim_3dofs.py et les envs
 _HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _HERE)
+_ROBOT_SRC = os.path.abspath(os.path.join(_HERE, "..", "..", "src", "robot"))
+sys.path.insert(0, _ROBOT_SRC)
 
 # ── Utilitaire d'affichage ─────────────────────────────────────────────────────
 

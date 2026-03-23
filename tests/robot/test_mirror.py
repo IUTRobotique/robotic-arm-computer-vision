@@ -26,7 +26,8 @@ import time
 
 # ── Constantes Dynamixel XL-320 ───────────────────────────────────────────────
 DXL_CENTER       = 512       # valeur brute  = 0 rad  (150°)
-DXL_MAX_RAW      = 1023      # valeur brute  max
+DXL_MAX_RAW      = 1023      # valeur brute  max (0..1023 = 1024 pas)
+DXL_MAX_DIVISOR  = 1024      # diviseur de la formule (= nombre de pas total, cohérent avec mirror.py)
 DXL_RANGE_DEG    = 300       # amplitude totale en degrés
 DXL_BAUDRATE     = 1_000_000
 DXL_PROTOCOL     = 2.0
@@ -40,13 +41,15 @@ LEN_PRESENT_POS    = 2
 # ── Fonction de conversion (même logique que mirror.py) ───────────────────────
 
 def dxl_to_rad(raw: int, center: int = DXL_CENTER) -> float:
-    """Convertit une position brute Dynamixel XL-320 en radians."""
-    return (raw - center) * (DXL_RANGE_DEG * math.pi / 180) / DXL_MAX_RAW
+    """Convertit une position brute Dynamixel XL-320 en radians.
+    Même formule que mirror.py : diviseur = 1024 (nombre de pas total).
+    """
+    return (raw - center) * (DXL_RANGE_DEG * math.pi / 180) / DXL_MAX_DIVISOR
 
 
 def rad_to_dxl(angle_rad: float, center: int = DXL_CENTER) -> int:
     """Convertit un angle en radians en valeur brute Dynamixel."""
-    raw = round(angle_rad * DXL_MAX_RAW / (DXL_RANGE_DEG * math.pi / 180) + center)
+    raw = round(angle_rad * DXL_MAX_DIVISOR / (DXL_RANGE_DEG * math.pi / 180) + center)
     return max(0, min(DXL_MAX_RAW, raw))
 
 
@@ -60,8 +63,9 @@ def tester_conversion() -> bool:
     cas = [
         # (valeur brute, angle attendu en rad, description)
         (512,   0.0,                  "centre (150°)"),
-        (0,    -DXL_RANGE_DEG * math.pi / 180 / 2, "butée min (0°)"),
-        (1023,  DXL_RANGE_DEG * math.pi / 180 / 2, "butée max (300°)"),
+        # Avec diviseur 1024 : raw=0 → (0-512)*300°/1024, raw=1023 → (1023-512)*300°/1024
+        (0,    -512 * (DXL_RANGE_DEG * math.pi / 180) / DXL_MAX_DIVISOR, "butée min (0°)"),
+        (1023,  511 * (DXL_RANGE_DEG * math.pi / 180) / DXL_MAX_DIVISOR, "butée max (300°)"),
         (256,  -math.pi * 150 / 180 / 2,            "quart gauche (~75°)"),
     ]
 
@@ -254,10 +258,13 @@ def main():
     print("  RÉCAPITULATIF")
     print(f"{'='*50}")
     for nom, res in resultats.items():
-        print(f"  [{ if res else }] {nom}")
+        sym = "OK" if res else "FAIL"
+        print(f"  [{sym}] {nom}")
     print()
 
-    sys.exit(0 if all(resultats.values()) else 1)
+    # "Ports série" absent = pas de matériel connecté, ce n'est pas un échec logiciel
+    tests_logiciels = {k: v for k, v in resultats.items() if k != "Ports série"}
+    sys.exit(0 if all(tests_logiciels.values()) else 1)
 
 
 if __name__ == "__main__":
