@@ -1,10 +1,7 @@
-"""Script d'entrainement SAC pour PushEnv et SlidingEnv.
-
-Ces deux environnements n'ont pas de goal (juste du deplacement),
-donc HER ne s'applique pas. On utilise SAC standard.
+"""Script d'entrainement SAC pour PushEnv et ReachingEnv.
 
 Usage :
-    python her.py --env sliding
+    python her.py --env reaching
     python her.py --env push --render
 """
 
@@ -19,9 +16,9 @@ from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalC
 from stable_baselines3.common.env_util import make_vec_env
 
 from robot_env.push_env import PushEnv
-from robot_env.sliding_env import SlidingEnv
+from robot_env.reaching_env import ReachingEnv
 
-TOTAL_TIMESTEPS: int = 1_000_000
+TOTAL_TIMESTEPS: int = 100_000_00
 BUFFER_SIZE: int = 1_000_000
 LEARNING_STARTS: int = 1_000
 BATCH_SIZE: int = 256
@@ -37,15 +34,12 @@ POLICY_KWARGS: dict[str, object] = {
 
 ENVS = {
     "push": PushEnv,
-    "sliding": SlidingEnv,
+    "reaching": ReachingEnv,
 }
 
-#seuils de récompense moyenne par épisode pour l'early stopping
-#push : +30 succès + récompenses d'approche ≈ 35 max
-#sliding : +30 succès + déplacement ≈ 50 max
 REWARD_THRESHOLDS: dict[str, float] = {
-    "push": 35.0,
-    "sliding": 45.0,
+    "push": 0.9,
+    "reaching": 0.9,
 }
 
 
@@ -56,7 +50,7 @@ class _RenderCallback(BaseCallback):
 
 
 def train(
-    env_name: str = "sliding",
+    env_name: str = "reaching",
     total_timesteps: int = TOTAL_TIMESTEPS,
     render: bool = False,
 ):
@@ -119,10 +113,10 @@ def train(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="SAC pour Push / Sliding (MuJoCo)")
+    parser = argparse.ArgumentParser(description="SAC pour Push / Reaching (MuJoCo)")
     parser.add_argument(
-        "--env", choices=list(ENVS.keys()), default="sliding",
-        help="Environnement (push ou sliding)",
+        "--env", choices=list(ENVS.keys()), default="reaching",
+        help="Environnement (push ou reaching)",
     )
     parser.add_argument("--timesteps", type=int, default=TOTAL_TIMESTEPS)
     parser.add_argument("--render", action="store_true")
