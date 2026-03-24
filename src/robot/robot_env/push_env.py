@@ -1,9 +1,3 @@
-"""Gymnasium environment for the Push task with the 3-DOF robot.
-
-The end effector must reach the cube and push it (displace it from its
-initial position). No target goal — just learn to make contact and move it.
-"""
-
 from __future__ import annotations
 
 import os
@@ -17,13 +11,10 @@ from sim_3dofs import Sim3Dofs
 # MuJoCo scene dedicated to push (robot + cube)
 SCENE_XML = os.path.join(os.path.dirname(__file__), "scene_push.xml")
 
-# Workspace bounds for sampling the cube
-CUBE_X_RANGE = (0.05, 0.20)
-CUBE_Y_RANGE = (-0.12, 0.12)
-GROUND_Z = 0.01
-
-# Minimum cube distance from the robot base (m)
-MIN_BASE_DIST = 0.15
+# Tirage en anneau autour du robot
+OBJ_Z = 0.0135
+OBJ_DIST_MIN = 0.12   # pas trop pres de la base (m)
+OBJ_DIST_MAX = 0.20   # portee max du robot (m)
 
 # Success threshold: cube moved at least this far from its spawn (m)
 SUCCESS_DIST = 0.2
@@ -33,22 +24,7 @@ MAX_EPISODE_STEPS = 100
 
 
 class PushEnv(gym.Env):
-    """Gymnasium env: the end effector must reach the cube and push it.
-
-    Observation (dim 12):
-        - qpos              (3)  joint positions
-        - ee_pos            (3)  end-effector Cartesian position
-        - cube_pos          (3)  cube position
-        - ee_to_cube        (3)  vector end-effector -> cube
-
-    Action (dim 3):
-        - target joint positions (sent to MuJoCo actuators)
-
-    Reward:
-        - -distance(ee, cube)               (approach the cube)
-        - + bonus for cube displacement      (reward pushing)
-        - smoothing penalty (action_rate)
-    """
+    """Gymnasium env: the end effector must reach the cube and push it"""
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 25}
 
@@ -75,8 +51,8 @@ class PushEnv(gym.Env):
             dtype=np.float32,
         )
 
-        # Observations: qpos(3) + ee(3) + cube(3) + ee_to_cube(3) = 12
-        obs_high = np.full(12, np.inf, dtype=np.float32)
+        # Observations: qpos(3) + ee(3) + cube(3) = 9
+        obs_high = np.full(9, np.inf, dtype=np.float32)
         self.observation_space = spaces.Box(
             low=-obs_high,
             high=obs_high,
@@ -90,25 +66,21 @@ class PushEnv(gym.Env):
 
     # Helpers
 
-    def _sample_ground_pos(self) -> np.ndarray:
-        """Random ground position, at least MIN_BASE_DIST away from the base."""
-        while True:
-            pos = np.array([
-                self.np_random.uniform(*CUBE_X_RANGE),
-                self.np_random.uniform(*CUBE_Y_RANGE),
-                GROUND_Z,
-            ])
-            if np.linalg.norm(pos) >= MIN_BASE_DIST:
-                return pos
+    def _sample_obj_pos(self) -> np.ndarray:
+        """Position aleatoire en anneau autour du robot avec."""
+        angle = self.np_random.uniform(-np.pi, np.pi)
+        dist = self.np_random.uniform(OBJ_DIST_MIN, OBJ_DIST_MAX)
+        pos = np.array([dist * np.cos(angle), dist * np.sin(angle), OBJ_Z])
+        
+        return pos
 
     def _get_obs(self) -> np.ndarray:
-        """Build the observation vector."""
-        qpos = self.sim.get_qpos()
+        """Build the observation vector with sim-to-real noise."""
+        qpos = self.sim.get_qpos() + self.np_random.normal(0, 0.005, size=(3,))
         ee_pos = self.sim.get_end_effector_pos()
-        cube_pos = self.sim.get_cube_pos()
-        ee_to_cube = cube_pos - ee_pos
+        cube_pos = self.sim.get_cube_pos() + self.np_random.normal(0, 0.002, size=(3,))
         return np.concatenate([
-            qpos, ee_pos, cube_pos, ee_to_cube,
+            qpos, ee_pos, cube_pos,
         ]).astype(np.float32)
 
     def _compute_reward(self, action: np.ndarray) -> tuple[float, bool]:
@@ -143,7 +115,7 @@ class PushEnv(gym.Env):
         self.sim.reset()
 
         # Sample cube on the ground
-        self._cube_init = self._sample_ground_pos()
+        self._cube_init = self._sample_obj_pos()
         self.sim.set_cube_pose(pos=self._cube_init.copy())
 
         self._prev_action = np.zeros(self.sim.n_actuators)

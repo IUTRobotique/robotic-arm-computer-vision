@@ -31,7 +31,7 @@ import torch
 import gymnasium as gym
 from gymnasium import spaces
 from stable_baselines3 import SAC
-from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalCallback
+from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalCallback, StopTrainingOnRewardThreshold
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import VecEnv
 from stable_baselines3.her.her_replay_buffer import HerReplayBuffer
@@ -57,6 +57,10 @@ POLICY_KWARGS: dict[str, object] = {
 
 MODEL_DIR: str = os.path.join(os.path.dirname(__file__), "models", "her_sac")
 LOG_DIR: str = os.path.join(os.path.dirname(__file__), "logs", "her_sac")
+
+#récompense moyenne par épisode au-delà de laquelle l'entraînement s'arrête
+#push-in-hole : -dist_xy + 10*(succès) sur 200 steps ; best observé ≈ 94 ; 90 = tâche résolue
+REWARD_THRESHOLD: float = 90.0
 
 
 class _RenderCallback(BaseCallback):
@@ -86,7 +90,7 @@ class PushInHoleGoalEnv(gym.Env):
     lors du relabelling, puis appeler ``compute_reward`` pour recalculer la
     récompense de la transition relabellisée.
     L'état robot est séparé du but pour éviter que l'agent apprenne à exploiter
-    les vecteurs dérivés du but (ee_to_cube, cube_to_hole) contenus dans
+    les vecteurs dérivés du but (cube_to_hole) contenus dans
     l'observation brute de PushInHoleEnv.
     """
 
@@ -257,8 +261,16 @@ def train(
 
     model: SAC = make_her_sac(env, log_dir=log_dir)
 
+    n_params: int = sum(p.numel() for p in model.policy.parameters())
+    print(f"Paramètres : {n_params:,}")
+
+    stop_callback: StopTrainingOnRewardThreshold = StopTrainingOnRewardThreshold(
+        reward_threshold=REWARD_THRESHOLD,
+        verbose=1,
+    )
     eval_callback: EvalCallback = EvalCallback(
         eval_env,
+        callback_on_new_best=stop_callback,
         best_model_save_path=model_dir,
         log_path=log_dir,
         eval_freq=5_000,

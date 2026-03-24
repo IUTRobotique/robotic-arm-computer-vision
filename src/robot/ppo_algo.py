@@ -18,7 +18,7 @@ from typing import Literal
 
 import torch
 from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalCallback
+from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalCallback, StopTrainingOnRewardThreshold
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecEnv
 
@@ -51,6 +51,10 @@ POLICY_KWARGS: dict[str, object] = {
 
 MODEL_DIR: str = os.path.join(os.path.dirname(__file__), "models", "ppo")
 LOG_DIR: str = os.path.join(os.path.dirname(__file__), "logs", "ppo")
+
+#récompense moyenne par épisode au-delà de laquelle l'entraînement s'arrête
+#push : +30 succès + récompenses d'approche ≈ 35 max ; 35 = succès systématique
+REWARD_THRESHOLD: float = 35.0
 
 
 def _setup_torch_for_cuda(device: str) -> None:
@@ -158,11 +162,17 @@ def train(
         tensorboard_log=log_dir,
         verbose=1,
     )
-    print(f"Device: {resolved_device} | n_envs_train: {n_envs_train} | vec_env: {type(vec_env).__name__}")
+    n_params: int = sum(p.numel() for p in model.policy.parameters())
+    print(f"Device: {resolved_device} | n_envs_train: {n_envs_train} | vec_env: {type(vec_env).__name__} | Paramètres : {n_params:,}")
 
+    stop_callback: StopTrainingOnRewardThreshold = StopTrainingOnRewardThreshold(
+        reward_threshold=REWARD_THRESHOLD,
+        verbose=1,
+    )
     #sauvegarde automatique du meilleur modèle selon la récompense moyenne d'évaluation
     eval_callback: EvalCallback = EvalCallback(
         eval_env,
+        callback_on_new_best=stop_callback,
         best_model_save_path=model_dir,
         log_path=log_dir,
         eval_freq=max(10_000 // N_ENVS, 1),
@@ -174,7 +184,10 @@ def train(
     if render:
         callbacks.append(_RenderCallback())
 
-    model.learn(total_timesteps=total_timesteps, callback=CallbackList(callbacks))
+    try:
+        model.learn(total_timesteps=total_timesteps, callback=CallbackList(callbacks))
+    except KeyboardInterrupt:
+        print("\nEntraînement interrompu par l'utilisateur")
     model.save(os.path.join(model_dir, "ppo_final"))
 
     vec_env.close()

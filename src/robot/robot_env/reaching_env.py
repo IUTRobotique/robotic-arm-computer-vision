@@ -1,9 +1,3 @@
-"""Environnement Gymnasium pour la tâche de Reaching avec le robot 3-DDL.
-
-L'effecteur final doit atteindre une position cible 3D tirée aléatoirement
-dans l'espace de travail du robot.
-"""
-
 from __future__ import annotations
 
 import os
@@ -17,13 +11,9 @@ from sim_3dofs import Sim3Dofs
 # Scène MuJoCo dédiée au reaching (robot + goal marker, pas de cube)
 SCENE_XML = os.path.join(os.path.dirname(__file__), "scene_reaching.xml")
 
-# Bornes de l'espace de travail pour le tirage du goal 
-GOAL_X_RANGE = (0.05, 0.20)
-GOAL_Y_RANGE = (-0.12, 0.12)
-GOAL_Z_RANGE = (0.01, 0.12)
-
-# Distance minimale du goal par rapport à la base du robot (m)
-MIN_GOAL_DIST = 0.15
+OBJ_Z = 0.0135
+OBJ_DIST_MIN = 0.12   # pas trop pres de la base (m)
+OBJ_DIST_MAX = 0.20   # portee max du robot (m)
 
 # Seuil de succès (m)
 SUCCESS_THRESHOLD = 0.01  # 1 cm
@@ -33,22 +23,8 @@ MAX_EPISODE_STEPS = 100
 
 
 class ReachingEnv(gym.Env):
-    """Env Gymnasium : l'end-effector doit atteindre un goal 3D.
-
-    Observation (dim 9) :
-        - qpos              (3)  positions articulaires
-        - ee_pos            (3)  position cartésienne de l'effecteur
-        - goal_pos - ee_pos (3)  vecteur effecteur → cible
-
-    Action (dim 3) :
-        - positions articulaires cibles (envoyées aux actionneurs MuJoCo)
-
-    Reward :
-        - -distance(ee, goal)  (dense)
-        - + bonus si distance < seuil
-        - pénalité de lissage (action_rate)
-    """
-
+    """Env Gymnasium : Reaching dans une position cible."""
+    
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 25}
 
     def __init__(self, render_mode: str | None = None) -> None:
@@ -89,20 +65,17 @@ class ReachingEnv(gym.Env):
 
     # Helpers 
 
-    def _sample_goal(self) -> np.ndarray:
-        """Tire un goal aléatoire dans l'espace de travail, pas trop proche de la base."""
-        while True:
-            goal = np.array([
-                self.np_random.uniform(*GOAL_X_RANGE),
-                self.np_random.uniform(*GOAL_Y_RANGE),
-                self.np_random.uniform(*GOAL_Z_RANGE),
-            ])
-            if np.linalg.norm(goal) >= MIN_GOAL_DIST:
-                return goal
+    def _sample_obj_pos(self) -> np.ndarray:
+        """Position aleatoire en anneau autour du robot."""
+        angle = self.np_random.uniform(-np.pi, np.pi)
+        dist = self.np_random.uniform(OBJ_DIST_MIN, OBJ_DIST_MAX)
+        pos = np.array([dist * np.cos(angle), dist * np.sin(angle), OBJ_Z])
+
+        return pos
 
     def _get_obs(self) -> np.ndarray:
-        """Construit le vecteur d'observation."""
-        qpos = self.sim.get_qpos()
+        """Construit le vecteur d'observation avec bruit (Sim-to-Real)."""
+        qpos = self.sim.get_qpos() + self.np_random.normal(0, 0.005, size=(3,))
         ee_pos = self.sim.get_end_effector_pos()
         goal_diff = self._goal - ee_pos
         return np.concatenate([qpos, ee_pos, goal_diff]).astype(np.float32)
@@ -120,7 +93,7 @@ class ReachingEnv(gym.Env):
         if is_success:
             reward += 1.0
 
-        # Pénalité de lissage (action_rate)
+        # Pénalité de lissage (mouvements brusques)
         action_rate = float(np.sum((action - self._prev_action) ** 2))
         reward -= 0.01 * action_rate
 
@@ -130,7 +103,7 @@ class ReachingEnv(gym.Env):
         super().reset(seed=seed)
 
         # Nouveau goal
-        self._goal = self._sample_goal()
+        self._goal = self._sample_obj_pos()
 
         # Reset simulation (pose neutre)
         self.sim.reset()

@@ -27,7 +27,7 @@ import os
 import numpy as np
 import torch
 from stable_baselines3 import TD3
-from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalCallback
+from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalCallback, StopTrainingOnRewardThreshold
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.vec_env import VecEnv
@@ -56,6 +56,10 @@ POLICY_KWARGS: dict[str, object] = {
 
 MODEL_DIR: str = os.path.join(os.path.dirname(__file__), "models", "td3")
 LOG_DIR: str = os.path.join(os.path.dirname(__file__), "logs", "td3")
+
+#récompense moyenne par épisode au-delà de laquelle l'entraînement s'arrête
+#reaching : 100 steps × ~1.0 (succès) - petites pénalités ≈ 95 max ; 90 = tâche résolue
+REWARD_THRESHOLD: float = 90.0
 
 
 class _RenderCallback(BaseCallback):
@@ -132,8 +136,16 @@ def train(
         verbose=1,
     )
 
+    stop_callback: StopTrainingOnRewardThreshold = StopTrainingOnRewardThreshold(
+        reward_threshold=REWARD_THRESHOLD,
+        verbose=1,
+    )
+    n_params: int = sum(p.numel() for p in model.policy.parameters())
+    print(f"Paramètres : {n_params:,}")
+
     eval_callback: EvalCallback = EvalCallback(
         eval_env,
+        callback_on_new_best=stop_callback,
         best_model_save_path=model_dir,
         log_path=log_dir,
         eval_freq=5_000,
@@ -145,7 +157,10 @@ def train(
     if render:
         callbacks.append(_RenderCallback())
 
-    model.learn(total_timesteps=total_timesteps, callback=CallbackList(callbacks))
+    try:
+        model.learn(total_timesteps=total_timesteps, callback=CallbackList(callbacks))
+    except KeyboardInterrupt:
+        print("\nEntraînement interrompu par l'utilisateur")
     model.save(os.path.join(model_dir, "td3_final"))
 
     env.close()
