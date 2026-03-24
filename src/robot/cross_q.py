@@ -197,6 +197,9 @@ def train(
 
     model: SAC = make_crossq_sac(env, log_dir=log_dir)
 
+    n_params: int = sum(p.numel() for p in model.policy.parameters())
+    print(f"Paramètres : {n_params:,}")
+
     stop_callback: StopTrainingOnRewardThreshold = StopTrainingOnRewardThreshold(
         reward_threshold=REWARD_THRESHOLD,
         verbose=1,
