@@ -11,12 +11,13 @@ from sim_3dofs import Sim3Dofs
 # Scène MuJoCo dédiée au reaching (robot + goal marker, pas de cube)
 SCENE_XML = os.path.join(os.path.dirname(__file__), "scene_reaching.xml")
 
-OBJ_Z = 0.0135
 OBJ_DIST_MIN = 0.12   # pas trop pres de la base (m)
 OBJ_DIST_MAX = 0.20   # portee max du robot (m)
+OBJ_Z_MIN = 0.0       # sol
+OBJ_Z_MAX = 0.05      # hauteur max atteignable (m)
 
 # Seuil de succès (m)
-SUCCESS_THRESHOLD = 0.01  # 1 cm
+SUCCESS_THRESHOLD = 0.02  # 2 cm
 
 # Durée max d'un épisode
 MAX_EPISODE_STEPS = 100
@@ -65,13 +66,12 @@ class ReachingEnv(gym.Env):
 
     # Helpers 
 
-    def _sample_obj_pos(self) -> np.ndarray:
-        """Position aleatoire en anneau autour du robot."""
+    def _sample_goal_pos(self) -> np.ndarray:
+        """Position aleatoire en anneau autour du robot, Z aleatoire."""
         angle = self.np_random.uniform(-np.pi, np.pi)
         dist = self.np_random.uniform(OBJ_DIST_MIN, OBJ_DIST_MAX)
-        pos = np.array([dist * np.cos(angle), dist * np.sin(angle), OBJ_Z])
-
-        return pos
+        z = self.np_random.uniform(OBJ_Z_MIN, OBJ_Z_MAX)
+        return np.array([dist * np.cos(angle), dist * np.sin(angle), z])
 
     def _get_obs(self) -> np.ndarray:
         """Construit le vecteur d'observation avec bruit (Sim-to-Real)."""
@@ -103,7 +103,7 @@ class ReachingEnv(gym.Env):
         super().reset(seed=seed)
 
         # Nouveau goal
-        self._goal = self._sample_obj_pos()
+        self._goal = self._sample_goal_pos()
 
         # Reset simulation (pose neutre)
         self.sim.reset()
