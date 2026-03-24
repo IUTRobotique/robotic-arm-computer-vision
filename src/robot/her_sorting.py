@@ -16,7 +16,7 @@ import torch
 import gymnasium as gym
 from gymnasium import spaces
 from stable_baselines3 import SAC
-from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalCallback
+from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalCallback, StopTrainingOnRewardThreshold
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import VecEnv
 from stable_baselines3.her.her_replay_buffer import HerReplayBuffer
@@ -46,6 +46,11 @@ POLICY_KWARGS: dict[str, object] = {
 
 MODEL_DIR: str = os.path.join(os.path.dirname(__file__), "models", "her_sac_sorting")
 LOG_DIR: str = os.path.join(os.path.dirname(__file__), "logs", "her_sac_sorting")
+
+#récompense moyenne par épisode au-delà de laquelle l'entraînement s'arrête
+#sorting : -dist×2 + 20*(cube) + 20*(cyl) + 50*(les deux) ; best observé ≈ -186 (en cours d'apprentissage)
+#0 indique que l'agent commence à résoudre la tâche de façon cohérente
+REWARD_THRESHOLD: float = 0.0
 
 
 class _RenderCallback(BaseCallback):
@@ -223,8 +228,13 @@ def train(
 
     model = make_her_sac(env, log_dir=log_dir)
 
+    stop_callback = StopTrainingOnRewardThreshold(
+        reward_threshold=REWARD_THRESHOLD,
+        verbose=1,
+    )
     eval_callback = EvalCallback(
         eval_env,
+        callback_on_new_best=stop_callback,
         best_model_save_path=model_dir,
         log_path=log_dir,
         eval_freq=EVAL_FREQ,

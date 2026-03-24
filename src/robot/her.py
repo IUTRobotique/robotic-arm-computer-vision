@@ -15,7 +15,7 @@ import os
 
 import torch
 from stable_baselines3 import SAC
-from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalCallback
+from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalCallback, StopTrainingOnRewardThreshold
 from stable_baselines3.common.env_util import make_vec_env
 
 from robot_env.push_env import PushEnv
@@ -38,6 +38,14 @@ POLICY_KWARGS: dict[str, object] = {
 ENVS = {
     "push": PushEnv,
     "sliding": SlidingEnv,
+}
+
+#seuils de récompense moyenne par épisode pour l'early stopping
+#push : +30 succès + récompenses d'approche ≈ 35 max
+#sliding : +30 succès + déplacement ≈ 50 max
+REWARD_THRESHOLDS: dict[str, float] = {
+    "push": 35.0,
+    "sliding": 45.0,
 }
 
 
@@ -78,8 +86,13 @@ def train(
         verbose=1,
     )
 
+    stop_callback = StopTrainingOnRewardThreshold(
+        reward_threshold=REWARD_THRESHOLDS[env_name],
+        verbose=1,
+    )
     eval_callback = EvalCallback(
         eval_env,
+        callback_on_new_best=stop_callback,
         best_model_save_path=model_dir,
         log_path=log_dir,
         eval_freq=5_000,
@@ -91,7 +104,10 @@ def train(
     if render:
         callbacks.append(_RenderCallback())
 
-    model.learn(total_timesteps=total_timesteps, callback=CallbackList(callbacks))
+    try:
+        model.learn(total_timesteps=total_timesteps, callback=CallbackList(callbacks))
+    except KeyboardInterrupt:
+        print("\nEntraînement interrompu par l'utilisateur")
     model.save(os.path.join(model_dir, f"sac_{env_name}_final"))
 
     env.close()
