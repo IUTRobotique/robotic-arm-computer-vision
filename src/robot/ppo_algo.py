@@ -163,7 +163,8 @@ def train(
         tensorboard_log=log_dir,
         verbose=1,
     )
-    print(f"Device: {resolved_device} | n_envs_train: {n_envs_train} | vec_env: {type(vec_env).__name__}")
+    n_params: int = sum(p.numel() for p in model.policy.parameters())
+    print(f"Device: {resolved_device} | n_envs_train: {n_envs_train} | vec_env: {type(vec_env).__name__} | Paramètres : {n_params:,}")
 
     stop_callback: StopTrainingOnRewardThreshold = StopTrainingOnRewardThreshold(
         reward_threshold=REWARD_THRESHOLD,

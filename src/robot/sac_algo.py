@@ -127,6 +127,9 @@ def train(
         reward_threshold=REWARD_THRESHOLD,
         verbose=1,
     )
+    n_params: int = sum(p.numel() for p in model.policy.parameters())
+    print(f"Paramètres : {n_params:,}")
+
     eval_callback: EvalCallback = EvalCallback(
         eval_env,
         callback_on_new_best=stop_callback,

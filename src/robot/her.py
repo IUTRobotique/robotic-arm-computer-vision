@@ -86,6 +86,9 @@ def train(
         verbose=1,
     )
 
+    n_params: int = sum(p.numel() for p in model.policy.parameters())
+    print(f"Paramètres : {n_params:,}")
+
     stop_callback = StopTrainingOnRewardThreshold(
         reward_threshold=REWARD_THRESHOLDS[env_name],
         verbose=1,
