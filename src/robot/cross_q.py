@@ -33,7 +33,7 @@ from typing import Any
 import torch
 import torch.nn as nn
 from stable_baselines3 import SAC
-from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalCallback
+from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalCallback, StopTrainingOnRewardThreshold
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import VecEnv
 
@@ -58,6 +58,10 @@ ENT_COEF: str = "auto"
 
 MODEL_DIR: str = os.path.join(os.path.dirname(__file__), "models", "crossq")
 LOG_DIR: str = os.path.join(os.path.dirname(__file__), "logs", "crossq")
+
+#récompense moyenne par épisode au-delà de laquelle l'entraînement s'arrête
+#reaching : 100 steps × ~1.0 (succès) - petites pénalités ≈ 95 max ; 90 = tâche résolue
+REWARD_THRESHOLD: float = 90.0
 
 
 class _RenderCallback(BaseCallback):
@@ -117,7 +121,7 @@ class BatchNormCritic(nn.Module):
 
 
 def make_crossq_sac(
-    env: PushInHoleEnv,
+    env: ReachingEnv,
     utd_ratio: int =UTD_RATIO,
     log_dir: str =LOG_DIR,
 ) -> SAC:
@@ -154,15 +158,15 @@ def make_crossq_sac(
     )
 
 
-def make_env(render_mode: str | None =None) -> PushInHoleEnv:
-    """Crée une instance fraîche de PushInHoleEnv (factory pour make_vec_env).
+def make_env(render_mode: str | None =None) -> ReachingEnv:
+    """Crée une instance fraîche de ReachingEnv (factory pour make_vec_env).
     Parameters:
         render_mode (str | None): ``"human"`` pour afficher MuJoCo en temps réel,
             ``None`` pour l'entraînement headless (plus rapide).
     Returns:
-        PushInHoleEnv: environnement gymnasium initialisé.
+        ReachingEnv: environnement gymnasium initialisé.
     """
-    return PushInHoleEnv(render_mode=render_mode)
+    return ReachingEnv(render_mode=render_mode)
 
 
 def train(
@@ -193,8 +197,13 @@ def train(
 
     model: SAC = make_crossq_sac(env, log_dir=log_dir)
 
+    stop_callback: StopTrainingOnRewardThreshold = StopTrainingOnRewardThreshold(
+        reward_threshold=REWARD_THRESHOLD,
+        verbose=1,
+    )
     eval_callback: EvalCallback = EvalCallback(
         eval_env,
+        callback_on_new_best=stop_callback,
         best_model_save_path=model_dir,
         log_path=log_dir,
         eval_freq=2_000,
@@ -207,7 +216,10 @@ def train(
     if render:
         callbacks.append(_RenderCallback())
 
-    model.learn(total_timesteps=total_timesteps, callback=CallbackList(callbacks))
+    try:
+        model.learn(total_timesteps=total_timesteps, callback=CallbackList(callbacks))
+    except KeyboardInterrupt:
+        print("\nEntraînement interrompu par l'utilisateur")
     model.save(os.path.join(model_dir, "crossq_final"))
 
     env.close()
