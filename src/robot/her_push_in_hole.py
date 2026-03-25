@@ -136,6 +136,13 @@ class PushInHoleGoalEnv(gym.Env):
         achieved = obs["achieved_goal"]
         reward = float(self.compute_reward(achieved, self._desired_goal, {}))
 
+        # shaping indépendant du goal : guide l'effecteur vers le cube
+        # (ne casse pas le relabeling HER car ne dépend pas de desired_goal)
+        ee_pos = self._inner.sim.get_end_effector_pos()
+        cube_pos = self._inner.sim.get_cube_pos()
+        dist_ee_cube = float(np.linalg.norm(ee_pos - cube_pos))
+        reward -= 0.5 * dist_ee_cube
+
         info = {
             "is_success": inner_info["is_success"],
             "dist_cube_marker": inner_info["dist_cube_marker"],
