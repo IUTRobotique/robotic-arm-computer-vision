@@ -38,7 +38,7 @@ ENVS = {
 }
 
 REWARD_THRESHOLDS: dict[str, float] = {
-    "push": 0.9,
+    "push": 1000,
     "reaching": 0.9,
 }
     
