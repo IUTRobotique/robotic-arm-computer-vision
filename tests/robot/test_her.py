@@ -83,12 +83,22 @@ _mock_sorting_module = types.ModuleType("robot_env.sorting_env")
 _mock_sorting_module.SortingEnv = _MockSortingEnv  # type: ignore[attr-defined]
 _mock_sorting_module.SUCCESS_THRESHOLD = _SUCCESS_THRESHOLD  # type: ignore[attr-defined]
 
+# her.py importe aussi robot_env.push_env et robot_env.sliding_env —
+# on injecte des modules factices pour éviter le chargement de MuJoCo.
+_mock_push_module = types.ModuleType("robot_env.push_env")
+_mock_push_module.PushEnv = mock.MagicMock(name="PushEnv")  # type: ignore[attr-defined]
+_mock_sliding_module = types.ModuleType("robot_env.sliding_env")
+_mock_sliding_module.SlidingEnv = mock.MagicMock(name="SlidingEnv")  # type: ignore[attr-defined]
+
 _mock_robot_env = types.ModuleType("robot_env")
 sys.modules.setdefault("robot_env", _mock_robot_env)
 sys.modules["robot_env.sorting_env"] = _mock_sorting_module
+sys.modules["robot_env.push_env"] = _mock_push_module
+sys.modules["robot_env.sliding_env"] = _mock_sliding_module
 
 # ── Import du module sous test ─────────────────────────────────────────────────
-import her  # noqa: E402
+# her_sorting.py contient SortingGoalEnv, make_her_sac et les constantes HER.
+import her_sorting as her  # noqa: E402
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -147,8 +157,8 @@ class TestHERConstantes(unittest.TestCase):
     def test_learning_rate(self) -> None:
         self.assertAlmostEqual(her.LEARNING_RATE, 3e-4)
 
-    def test_gradient_steps_1(self) -> None:
-        self.assertEqual(her.GRADIENT_STEPS, 1)
+    def test_gradient_steps_100(self) -> None:
+        self.assertEqual(her.GRADIENT_STEPS, 100)
 
     def test_buffer_size_positif(self) -> None:
         self.assertGreater(her.BUFFER_SIZE, 0)

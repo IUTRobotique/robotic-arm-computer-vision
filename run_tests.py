@@ -4,7 +4,8 @@
 Trois catégories :
 
   PYTEST       — tests unitaires automatiques (sans matériel)
-                 tests/robot/test_cross_q.py, test_her.py
+                 tests/robot/test_cross_q.py, test_her.py,
+                 test_robot_envs.py, tests/test_aruco_map.py
   SCRIPTS      — scripts autonomes exécutables sans matériel
                  tests/robot/test_mirror.py (conversions Dynamixel + liste ports)
   MANUELS      — scripts interactifs (caméra, MuJoCo, servos…)
@@ -31,6 +32,8 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 PYTEST_TESTS = [
     os.path.join(ROOT, "tests", "robot", "test_cross_q.py"),
     os.path.join(ROOT, "tests", "robot", "test_her.py"),
+    os.path.join(ROOT, "tests", "robot", "test_robot_envs.py"),
+    os.path.join(ROOT, "tests", "test_aruco_map.py"),
 ]
 
 # ── 2. Scripts autonomes (exécutables sans matériel, stdlib only) ─────────────
