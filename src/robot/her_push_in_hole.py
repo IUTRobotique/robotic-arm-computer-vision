@@ -17,6 +17,7 @@ from stable_baselines3.common.callbacks import (
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import VecEnv
 from stable_baselines3.her.her_replay_buffer import HerReplayBuffer
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecEnv
 
 from robot_env.push_in_hole_env import PushInHoleEnv, SUCCESS_Z_THRESHOLD, MAX_EPISODE_STEPS
 
@@ -28,7 +29,9 @@ GAMMA: float = 0.99
 TAU: float = 0.005
 LEARNING_RATE: float = 3e-4
 GRADIENT_STEPS: int = 16
-N_SAMPLED_GOAL: int = 4
+N_SAMPLED_GOAL: int = 8
+
+N_ENVS: int = 16
 
 POLICY_KWARGS: dict[str, object] = {
     "net_arch": [256, 256],
@@ -166,26 +169,54 @@ def train(
     os.makedirs(model_dir, exist_ok=True)
     os.makedirs(log_dir, exist_ok=True)
 
-    render_mode = "human" if render else None
-    env = make_env(render_mode=render_mode)
+    # Pas de SubprocVecEnv si render : un seul env humain
+    if render:
+        env = make_env(render_mode="human")
+        n_envs = 1
+    else:
+        env = make_vec_env(
+            make_env,
+            n_envs=N_ENVS,
+            vec_env_cls=SubprocVecEnv,
+        )
+        n_envs = N_ENVS
+
     eval_env: VecEnv = make_vec_env(make_env, n_envs=1)
 
-    model = make_her_sac(env, log_dir=log_dir)
+    model = SAC(
+        "MultiInputPolicy",
+        env,
+        buffer_size=BUFFER_SIZE,          # SB3 divise en interne par n_envs
+        learning_starts=LEARNING_STARTS,
+        batch_size=BATCH_SIZE,
+        gamma=GAMMA,
+        tau=TAU,
+        learning_rate=LEARNING_RATE,
+        gradient_steps=-1,                 # auto : 1 gradient step par transition collectée
+        ent_coef=0.1,
+        replay_buffer_class=HerReplayBuffer,
+        replay_buffer_kwargs={
+            "n_sampled_goal": N_SAMPLED_GOAL,
+            "goal_selection_strategy": "future",
+        },
+        policy_kwargs=POLICY_KWARGS,
+        tensorboard_log=log_dir,
+        verbose=1,
+    )
+
+    print(f"Envs  : {n_envs}")
     print(f"Paramètres : {sum(p.numel() for p in model.policy.parameters()):,}")
 
-    # FIX: retour au mécanisme original qui fonctionne —
-    # StopTrainingOnRewardThreshold s'appuie sur la récompense moyenne évaluée
-    # par EvalCallback, pas sur ep_info_buffer (qui ne contient jamais is_success).
     stop_callback = StopTrainingOnRewardThreshold(
         reward_threshold=REWARD_THRESHOLD,
         verbose=1,
     )
     eval_callback = EvalCallback(
         eval_env,
-        callback_on_new_best=stop_callback,           # FIX: manquait dans la nouvelle version
+        callback_on_new_best=stop_callback,
         best_model_save_path=model_dir,
         log_path=log_dir,
-        eval_freq=5_000,
+        eval_freq=max(5_000 // n_envs, 1),  # fréquence adaptée au nombre d'envs
         n_eval_episodes=20,
         deterministic=True,
     )
@@ -196,10 +227,10 @@ def train(
 
     model.learn(total_timesteps=total_timesteps, callback=CallbackList(callbacks))
     model.save(os.path.join(model_dir, "her_sac_final"))
+
     env.close()
     eval_env.close()
     return model
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -31,6 +31,7 @@ from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalC
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.vec_env import VecEnv
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecEnv
 
 from robot_env.push_in_hole_env import PushInHoleEnv as ReachingEnv
 from stable_baselines3.common.monitor import Monitor
@@ -47,6 +48,8 @@ GRADIENT_STEPS: int = 16
 
 #l'acteur est mis à jour 1 fois pour 2 mises à jour des critiques
 POLICY_DELAY: int = 2
+
+N_ENVS: int = 8
 
 #écart-type du bruit gaussien ajouté à l'action pendant la collecte
 ACTION_NOISE_STD: float = 0.1
@@ -86,37 +89,35 @@ def make_env(render_mode: str | None =None) -> ReachingEnv:
     """
     return ReachingEnv(render_mode=render_mode)
 
-
 def train(
-    total_timesteps: int =TOTAL_TIMESTEPS,
-    model_dir: str =MODEL_DIR,
-    log_dir: str =LOG_DIR,
-    render: bool =False,
+    total_timesteps: int = TOTAL_TIMESTEPS,
+    model_dir: str = MODEL_DIR,
+    log_dir: str = LOG_DIR,
+    render: bool = False,
 ) -> TD3:
-    """Entraîne un agent TD3 sur la tâche de reaching.
-
-    TD3 est plus stable que DDPG mais sa courbe d'apprentissage est plus
-    erratique que SAC : la qualité de la convergence dépend fortement du
-    bruit d'exploration. Si ACTION_NOISE_STD est trop faible, l'agent ne
-    s'échappe pas des minima locaux ; trop élevé, le signal d'apprentissage
-    se dégrade. 0.1 (10% de l'amplitude articulaire) est un bon point de départ.
-    Parameters:
-        total_timesteps (int): nombre total de pas d'environnement à simuler
-        model_dir (str): répertoire de sauvegarde du meilleur modèle (EvalCallback)
-        log_dir (str): répertoire TensorBoard pour les courbes d'apprentissage
-    Returns:
-        TD3: agent entraîné (modèle final, pas nécessairement le meilleur).
-    """
     os.makedirs(model_dir, exist_ok=True)
     os.makedirs(log_dir, exist_ok=True)
 
     render_mode: str | None = "human" if render else None
+    n_envs_train: int = 1 if render else N_ENVS
+    vec_env_cls = None if n_envs_train == 1 else SubprocVecEnv
 
-    env = Monitor(make_env(render_mode=render_mode),
-                info_keywords=("is_success", "cube_displacement"))
-    eval_env: VecEnv = make_vec_env(make_env, n_envs=1)
+    env: VecEnv = make_vec_env(
+        make_env,
+        n_envs=n_envs_train,
+        env_kwargs={"render_mode": render_mode},
+        vec_env_cls=vec_env_cls,
+        monitor_kwargs={"info_keywords": ("is_success", "cube_displacement")},
+    )
+    eval_env: VecEnv = make_vec_env(
+        make_env,
+        n_envs=1,
+        env_kwargs={"render_mode": None},
+        monitor_kwargs={"info_keywords": ("is_success", "cube_displacement")},
+    )
 
-    #bruit gaussien indépendant par dimension d'action pour l'exploration
+    # Le bruit porte sur les dimensions d'action, pas sur n_envs
+    # SB3 applique un bruit indépendant par env automatiquement
     n_actions: int = env.action_space.shape[0]
     action_noise: NormalActionNoise = NormalActionNoise(
         mean=np.zeros(n_actions),
@@ -132,7 +133,7 @@ def train(
         gamma=GAMMA,
         tau=TAU,
         learning_rate=LEARNING_RATE,
-        gradient_steps=GRADIENT_STEPS,
+        gradient_steps=-1,          # auto : 1 gradient step par transition collectée
         policy_delay=POLICY_DELAY,
         action_noise=action_noise,
         policy_kwargs=POLICY_KWARGS,
@@ -140,19 +141,19 @@ def train(
         verbose=1,
     )
 
+    n_params: int = sum(p.numel() for p in model.policy.parameters())
+    print(f"Device: cpu | n_envs_train: {n_envs_train} | vec_env: {type(env).__name__} | Paramètres : {n_params:,}")
+
     stop_callback: StopTrainingOnRewardThreshold = StopTrainingOnRewardThreshold(
         reward_threshold=REWARD_THRESHOLD,
         verbose=1,
     )
-    n_params: int = sum(p.numel() for p in model.policy.parameters())
-    print(f"Paramètres : {n_params:,}")
-
     eval_callback: EvalCallback = EvalCallback(
         eval_env,
         callback_on_new_best=stop_callback,
         best_model_save_path=model_dir,
         log_path=log_dir,
-        eval_freq=5_000,
+        eval_freq=max(5_000 // n_envs_train, 1),
         n_eval_episodes=20,
         deterministic=True,
     )
@@ -165,12 +166,11 @@ def train(
         model.learn(total_timesteps=total_timesteps, callback=CallbackList(callbacks))
     except KeyboardInterrupt:
         print("\nEntraînement interrompu par l'utilisateur")
-    model.save(os.path.join(model_dir, "td3_final"))
 
+    model.save(os.path.join(model_dir, "td3_final"))
     env.close()
     eval_env.close()
     return model
-
 
 if __name__ == "__main__":
     parser: argparse.ArgumentParser = argparse.ArgumentParser(

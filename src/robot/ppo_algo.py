@@ -130,7 +130,7 @@ def train(
 
     render_mode: str | None = "human" if render else None
     #en mode render : 1 seul env pour éviter N_ENVS fenêtres MuJoCo simultanées
-    n_envs_train: int = 1 if render else max(1, n_envs)
+    n_envs_train: int = 8 if render else max(1, n_envs)
     vec_env_cls = None if render or n_envs_train == 1 else SubprocVecEnv
     vec_env: VecEnv = make_vec_env(
         make_env,
@@ -176,7 +176,7 @@ def train(
         callback_on_new_best=stop_callback,
         best_model_save_path=model_dir,
         log_path=log_dir,
-        eval_freq=max(10_000 // N_ENVS, 1),
+        eval_freq=max(10_000 // n_envs_train, 1),
         n_eval_episodes=20,
         deterministic=True,
     )
