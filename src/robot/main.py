@@ -22,7 +22,7 @@ import sim_to_real
 import numpy as np
 from stable_baselines3 import PPO, SAC, TD3
 
-from aruco.detection_module import DetectionModule
+from detection_module import DetectionModule
 from robot_env.reaching_env import ReachingEnv
 from robot_env.push_env import PushEnv
 from robot_env.sliding_env import SlidingEnv
@@ -142,10 +142,10 @@ if __name__ == "__main__":
     model = ALGO_CLS[args.algo].load(str(model_path), env=env)
 
     rewards, successes, distances = [], [], []
-
+    detector = None
     if args.real:
         sim_to_real.init_real_robot()
-
+        detector = DetectionModule("../best.pt", 0.045)
     for ep in range(args.episodes):
         obs, _ = env.reset()
         done = False
@@ -157,6 +157,13 @@ if __name__ == "__main__":
             if result is not None:
                 if len(result) > 0:
                     cube_pos = result[0].get('position_m')
+                    cube_pos = np.array(cube_pos, dtype=np.float32)
+                    cube_pos[0] -= 0.01
+                    cube_pos[1] -= 0.01
+                    cube_pos[2] = 0 
+                    
+
+
                     env._inner.sim.set_cube_pose(cube_pos)
             action, _ = model.predict(obs, deterministic=True)
             obs, reward, terminated, truncated, info = env.step(action)
