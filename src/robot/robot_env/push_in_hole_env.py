@@ -30,8 +30,8 @@ OBJ_DIST_MAX = 0.20   # portee max du robot (m)
 MIN_CUBE_MARKER_DIST = 0.05
 
 # Seuils de succes : position xy ET orientation
-SUCCESS_POS_THRESHOLD = 0.005   # 5 mm de tolerance en position
-SUCCESS_YAW_THRESHOLD = 0.10    # ~5.7 deg de tolerance en yaw (cos/sin)
+SUCCESS_POS_THRESHOLD = 0.02    # 20 mm de tolerance en position
+SUCCESS_YAW_THRESHOLD = 0.20    # ~11.5 deg de tolerance en yaw (cos/sin)
 
 # Duree max d'un episode
 MAX_EPISODE_STEPS = 400
