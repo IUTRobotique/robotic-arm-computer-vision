@@ -14,11 +14,15 @@ import argparse
 import os
 import time
 from pathlib import Path
+
+from sympy.codegen.ast import none
+
 import sim_to_real
 
 import numpy as np
 from stable_baselines3 import PPO, SAC, TD3
 
+from aruco.detection_module import DetectionModule
 from robot_env.reaching_env import ReachingEnv
 from robot_env.push_env import PushEnv
 from robot_env.sliding_env import SlidingEnv
@@ -42,6 +46,7 @@ ALGO_CLS = {
     "crossq": SAC,
     "her": SAC,
 }
+
 
 # -- Mapping (env, algo) -> dossier de modeles --
 # Convention : models/{algo}_{env}/ ou models/{algo}/ pour les anciens
@@ -137,12 +142,19 @@ if __name__ == "__main__":
     rewards, successes, distances = [], [], []
 
     sim_to_real.init_real_robot()
+    detector = DetectionModule('../../best.pt', 0.05)
     for ep in range(args.episodes):
         obs, _ = env.reset()
         done = False
         total_reward = 0.0
 
         while not done:
+            result = detector.get_positions()
+            # env._inner.sim.set_cube_pose(np.ndarray([result]))
+            if result is not None:
+                if len(result) > 0:
+                    cube_pos = result[0].get('position_m')
+                    env._inner.sim.set_cube_pose(cube_pos)
             action, _ = model.predict(obs, deterministic=True)
             obs, reward, terminated, truncated, info = env.step(action)
             motor_joints = env._inner.sim.get_qpos()
@@ -160,7 +172,7 @@ if __name__ == "__main__":
         dist_value = extract_distance(info)
         distances.append(dist_value)
 
-        print(f"Ep {ep+1:3d}: reward={total_reward:7.2f}  "
+        print(f"Ep {ep + 1:3d}: reward={total_reward:7.2f}  "
               f"success={info.get('is_success', False)}  dist={dist_value:.4f}")
 
     sim_to_real.close_real_robot()
@@ -168,5 +180,5 @@ if __name__ == "__main__":
 
     print(f"\n--- {args.env} | {args.algo} | {args.episodes} episodes ---")
     print(f"Reward : {np.mean(rewards):.2f} +/- {np.std(rewards):.2f}")
-    print(f"Succes : {np.mean(successes)*100:.1f}%")
+    print(f"Succes : {np.mean(successes) * 100:.1f}%")
     print(f"Dist   : {np.mean(distances):.4f} +/- {np.std(distances):.4f}")
