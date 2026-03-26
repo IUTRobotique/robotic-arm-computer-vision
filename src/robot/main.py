@@ -20,7 +20,7 @@ from stable_baselines3 import PPO, SAC, TD3
 
 from robot_env.reaching_env import ReachingEnv
 from robot_env.push_env import PushEnv
-from robot_env.sliding_env import SlidingEnv
+from robot.legacy.sliding_env import SlidingEnv
 from robot_env.push_in_hole_env import PushInHoleEnv
 from robot_env.sorting_env import SortingEnv
 
