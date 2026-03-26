@@ -69,9 +69,9 @@ class DetectionModule:
 
 
         # Defining the aruco marker's origin point
-        # We decided to shift it by x - 6cm so the robot itself will be the center.
+        # We decided to shift it by x - 2.5 cm so the robot itself will be the center.
         half = aruco_marker_size / 2
-        offset_x = 0.055  # 6 cm
+        offset_x = 0.025  # 2.5 cm
 
         self.obj_points = np.array([
             [-half - offset_x, half, 0],

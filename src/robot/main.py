@@ -157,12 +157,12 @@ if __name__ == "__main__":
             if result is not None:
                 if len(result) > 0:
                     cube_pos = result[0].get('position_m')
-                    cube_pos = np.array(cube_pos, dtype=np.float32)
-                    cube_pos[0] -= 0.01
-                    cube_pos[1] -= 0.01
-                    cube_pos[2] = 0 
-                    
 
+                    # Defines a small shift in order to have the exact sim-to-real coords for the robot
+                    cube_pos = np.array(cube_pos, dtype=np.float32)
+                    cube_pos[0] -= 0.0
+                    cube_pos[1] -= 0.0
+                    cube_pos[2] = 0
 
                     env._inner.sim.set_cube_pose(cube_pos)
             action, _ = model.predict(obs, deterministic=True)
