@@ -53,9 +53,9 @@ class DetectionModule:
         )
         self.intrinsics = intrinsics
         self.camera_matrix = np.array([
-            [intrinsics.fx, 0,             intrinsics.ppx],
-            [0,             intrinsics.fy, intrinsics.ppy],
-            [0,             0,             1             ],
+            [intrinsics.fx, 0, intrinsics.ppx],
+            [0, intrinsics.fy, intrinsics.ppy],
+            [0, 0, 1],
         ], dtype=np.float64)
         self.dist_coeffs = np.array(intrinsics.coeffs, dtype=np.float64)
 
@@ -63,11 +63,10 @@ class DetectionModule:
         self.model = YOLO(yolo_model_path)
 
         # --- ArUco ---
-        self.aruco_dict     = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-        self.aruco_params   = cv2.aruco.DetectorParameters()
+        self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+        self.aruco_params = cv2.aruco.DetectorParameters()
         self.aruco_detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
         self.aruco_marker_size = aruco_marker_size
-
 
         # Defining the aruco marker's origin point
         # We decided to shift it by x - 2.5 cm so the robot itself will be the center.
@@ -175,7 +174,7 @@ class DetectionModule:
         (équivalent du `continue` dans la boucle while de detect_and_localize).
         """
         while True:
-            frames  = self.pipeline.wait_for_frames()
+            frames = self.pipeline.wait_for_frames()
             aligned = self.align.process(frames)
             color_frame = aligned.get_color_frame()
             depth_frame = aligned.get_depth_frame()
@@ -208,8 +207,8 @@ class DetectionModule:
             )
             if success:
                 poses[marker_id] = {
-                    'rvec':    rvec,
-                    'tvec':    tvec,
+                    'rvec': rvec,
+                    'tvec': tvec,
                     'corners': corners[i][0],
                 }
 
@@ -219,7 +218,7 @@ class DetectionModule:
         """Dessine les contours et axes de tous les marqueurs détectés."""
         for marker_id, data in poses.items():
             if marker_id == 6:
-                color = (0, 255, 0)   # vert = repère monde
+                color = (0, 255, 0)  # vert = repère monde
                 label = "Marqueur 6 (REPERE MONDE)"
             else:
                 color = (128, 128, 128)
@@ -233,24 +232,24 @@ class DetectionModule:
                               self.aruco_marker_size * 0.5)
 
             pos_cam = data['tvec'].flatten()
-            center  = tuple(pts.mean(axis=0).astype(int))
+            center = tuple(pts.mean(axis=0).astype(int))
             cv2.putText(img, label,
                         (center[0] - 50, center[1] - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
             cv2.putText(img,
-                        f"Cam: ({pos_cam[0]*100:.1f}, {pos_cam[1]*100:.1f}, {pos_cam[2]*100:.1f}) cm",
+                        f"Cam: ({pos_cam[0] * 100:.1f}, {pos_cam[1] * 100:.1f}, {pos_cam[2] * 100:.1f}) cm",
                         (center[0] - 50, center[1] + 15),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
     def _draw_detection(self, img, bbox, class_name, conf, point_cam, point_world):
         """Dessine la bounding box et les labels — identique à l'original."""
         x1, y1, x2, y2 = map(int, bbox)
-        RED   = (0,   0, 255)
+        RED = (0, 0, 255)
         WHITE = (255, 255, 255)
 
         cv2.rectangle(img, (x1, y1), (x2, y2), RED, 2)
 
-        pc = point_cam   * 100
+        pc = point_cam * 100
         pw = point_world * 100
 
         cv2.putText(img, f"{class_name} {conf:.2f}",
@@ -260,7 +259,7 @@ class DetectionModule:
                     (x1, y1 - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.4, RED, 1)
         cv2.putText(img,
                     f"M6:  ({pw[0]:.1f}, {pw[1]:.1f}, {pw[2]:.1f}) cm",
-                    (x1, y1 - 5),  cv2.FONT_HERSHEY_SIMPLEX, 0.4, WHITE, 2)
+                    (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, WHITE, 2)
 
     def _show(self, image, window_name):
         self._last_display_frame = image

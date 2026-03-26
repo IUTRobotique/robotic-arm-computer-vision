@@ -15,15 +15,10 @@ import os
 import threading
 import time
 from pathlib import Path
-
 import cv2
-from sympy.codegen.ast import none
-
 import sim_to_real
-
 import numpy as np
 from stable_baselines3 import PPO, SAC, TD3
-
 from detection_module import DetectionModule
 from robot_env.reaching_env import ReachingEnv
 from robot_env.push_env import PushEnv
@@ -52,6 +47,7 @@ ALGO_CLS = {
 _cube_pos_lock = threading.Lock()
 _latest_cube_pos = None
 _stop_detection = threading.Event()
+
 
 # -- Mapping (env, algo) -> dossier de modeles --
 # Convention : models/{algo}_{env}/ ou models/{algo}/ pour les anciens
@@ -139,7 +135,8 @@ def detection_loop(detector):
                 _latest_cube_pos = pos
 
 
-if __name__ == "__main__":
+def parse_args():
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Test des modeles entraines")
     parser.add_argument("--env", required=True, choices=list(ENVS.keys()),
                         help="Environnement a tester")
@@ -152,7 +149,12 @@ if __name__ == "__main__":
                         help="Affiche MuJoCo en temps reel")
     parser.add_argument("--real", action="store_true",
                         help="Active le sim-to-real (robot physique)")
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+
+    args = parse_args()
 
     env = make_eval_env(args.env, args.algo, args.render)
     model_path = resolve_model_path(args.env, args.algo)
@@ -208,12 +210,12 @@ if __name__ == "__main__":
             print(f"Ep {ep + 1:3d}: reward={total_reward:7.2f}  "
                   f"success={info.get('is_success', False)}  dist={dist_value:.4f}")
     finally:
-            _stop_detection.set()
-            if args.real:
-                detection_thread.join(timeout=3)
-                sim_to_real.close_real_robot()
-                detector.close()
-            env.close()
+        _stop_detection.set()
+        if args.real:
+            detection_thread.join(timeout=3)
+            sim_to_real.close_real_robot()
+            detector.close()
+        env.close()
 
     print(f"\n--- {args.env} | {args.algo} | {args.episodes} episodes ---")
     print(f"Reward : {np.mean(rewards):.2f} +/- {np.std(rewards):.2f}")
