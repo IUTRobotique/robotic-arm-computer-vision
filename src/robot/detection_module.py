@@ -67,12 +67,17 @@ class DetectionModule:
         self.aruco_detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
         self.aruco_marker_size = aruco_marker_size
 
+
+        # Defining the aruco marker's origin point
+        # We decided to shift it by x - 6cm so the robot itself will be the center.
         half = aruco_marker_size / 2
+        offset_x = 0.055  # 6 cm
+
         self.obj_points = np.array([
-            [-half,  half, 0],
-            [ half,  half, 0],
-            [ half, -half, 0],
-            [-half, -half, 0],
+            [-half - offset_x, half, 0],
+            [half - offset_x, half, 0],
+            [half - offset_x, -half, 0],
+            [-half - offset_x, -half, 0],
         ], dtype=np.float32)
 
         # Redémarre le pipeline proprement (pattern du code original)
