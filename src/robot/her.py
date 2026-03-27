@@ -1,10 +1,7 @@
-"""Script d'entrainement SAC pour PushEnv et SlidingEnv.
-
-Ces deux environnements n'ont pas de goal (juste du deplacement),
-donc HER ne s'applique pas. On utilise SAC standard.
+"""Script d'entrainement SAC pour PushEnv et ReachingEnv.
 
 Usage :
-    python her.py --env sliding
+    python her.py --env reaching
     python her.py --env push --render
 """
 
@@ -13,15 +10,16 @@ from __future__ import annotations
 import argparse
 import os
 
+import numpy as np
 import torch
 from stable_baselines3 import SAC
 from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalCallback
 from stable_baselines3.common.env_util import make_vec_env
 
 from robot_env.push_env import PushEnv
-from robot_env.sliding_env import SlidingEnv
+from robot_env.reaching_env import ReachingEnv
 
-TOTAL_TIMESTEPS: int = 300_000
+TOTAL_TIMESTEPS: int = 10_000_000
 BUFFER_SIZE: int = 1_000_000
 LEARNING_STARTS: int = 1_000
 BATCH_SIZE: int = 256
@@ -37,8 +35,47 @@ POLICY_KWARGS: dict[str, object] = {
 
 ENVS = {
     "push": PushEnv,
-    "sliding": SlidingEnv,
+    "reaching": ReachingEnv,
 }
+
+# Seuil de succes pour l'early stop
+SUCCESS_RATE_THRESHOLD = 0.98
+
+
+class _StopOnSuccessRate(BaseCallback):
+    """Arrete l'entrainement quand le taux de succes depasse un seuil."""
+
+    def __init__(self, threshold: float = 0.98, verbose: int = 1):
+        super().__init__(verbose)
+        self.threshold = threshold
+
+    def _on_step(self) -> bool:
+        # Appele par EvalCallback via callback_after_eval
+        # self.parent est l'EvalCallback
+        if self.parent is None:
+            return True
+        # EvalCallback stocke les resultats dans last_mean_reward
+        # mais le succes est dans evaluations_results via les infos
+        # On utilise le fichier evaluations.npz sauvé par EvalCallback
+        log_path = self.parent.log_path
+        if log_path is None:
+            return True
+        eval_path = os.path.join(log_path, "evaluations.npz")
+        if not os.path.exists(eval_path):
+            return True
+        data = np.load(eval_path)
+        if "successes" not in data:
+            return True
+        # successes shape: (n_evals, n_episodes)
+        last_successes = data["successes"][-1]
+        success_rate = float(np.mean(last_successes))
+        if self.verbose:
+            print(f"[EarlyStop] Success rate: {success_rate:.2%}")
+        if success_rate >= self.threshold:
+            if self.verbose:
+                print(f"[EarlyStop] Seuil atteint ({success_rate:.2%} >= {self.threshold:.2%}), arret.")
+            return False
+        return True
 
 
 class _RenderCallback(BaseCallback):
@@ -48,7 +85,7 @@ class _RenderCallback(BaseCallback):
 
 
 def train(
-    env_name: str = "sliding",
+    env_name: str = "reaching",
     total_timesteps: int = TOTAL_TIMESTEPS,
     render: bool = False,
 ):
@@ -78,8 +115,13 @@ def train(
         verbose=1,
     )
 
+    n_params: int = sum(p.numel() for p in model.policy.parameters())
+    print(f"Paramètres : {n_params:,}")
+
+    stop_callback = _StopOnSuccessRate(threshold=SUCCESS_RATE_THRESHOLD, verbose=1)
     eval_callback = EvalCallback(
         eval_env,
+        callback_after_eval=stop_callback,
         best_model_save_path=model_dir,
         log_path=log_dir,
         eval_freq=5_000,
@@ -91,7 +133,10 @@ def train(
     if render:
         callbacks.append(_RenderCallback())
 
-    model.learn(total_timesteps=total_timesteps, callback=CallbackList(callbacks))
+    try:
+        model.learn(total_timesteps=total_timesteps, callback=CallbackList(callbacks))
+    except KeyboardInterrupt:
+        print("\nEntraînement interrompu par l'utilisateur")
     model.save(os.path.join(model_dir, f"sac_{env_name}_final"))
 
     env.close()
@@ -100,10 +145,10 @@ def train(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="SAC pour Push / Sliding (MuJoCo)")
+    parser = argparse.ArgumentParser(description="SAC pour Push / Reaching (MuJoCo)")
     parser.add_argument(
-        "--env", choices=list(ENVS.keys()), default="sliding",
-        help="Environnement (push ou sliding)",
+        "--env", choices=list(ENVS.keys()), default="reaching",
+        help="Environnement (push ou reaching)",
     )
     parser.add_argument("--timesteps", type=int, default=TOTAL_TIMESTEPS)
     parser.add_argument("--render", action="store_true")
