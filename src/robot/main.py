@@ -44,25 +44,15 @@ ALGO_CLS = {
     "her": SAC,
 }
 
-<<<<<<< HEAD
-SPECIAL_HER_MODELS = {
-    "her_1st": "her_sac_1st_working_push_in_hole",
-}
-=======
 _cube_pos_lock = threading.Lock()
 _latest_cube_pos = None
 _stop_detection = threading.Event()
 
->>>>>>> sim_real
 
 # -- Mapping (env, algo) -> dossier de modeles --
 # Convention : models/{algo}_{env}/ ou models/{algo}/ pour les anciens
 def _model_dir(env_name: str, algo: str) -> Path:
     base = Path(os.path.dirname(__file__)) / "models"
-
-    # Special-case HER variants that have custom directory names
-    if algo in SPECIAL_HER_MODELS:
-        return base / SPECIAL_HER_MODELS[algo]
 
     # Chercher d'abord le dossier specifique env+algo
     specific = base / f"{algo}_{env_name}"
@@ -166,16 +156,12 @@ def parse_args():
                         help="Affiche MuJoCo en temps reel")
     parser.add_argument("--real", action="store_true",
                         help="Active le sim-to-real (robot physique)")
-<<<<<<< HEAD
-    args = parser.parse_args()
-=======
     return parser.parse_args()
 
 
 if __name__ == "__main__":
 
     args = parse_args()
->>>>>>> sim_real
 
     env = make_eval_env(args.env, args.algo, args.render)
     model_path = resolve_model_path(args.env, args.algo)
@@ -186,27 +172,6 @@ if __name__ == "__main__":
 
     if args.real:
         sim_to_real.init_real_robot()
-<<<<<<< HEAD
-
-    for ep in range(args.episodes):
-        obs, _ = env.reset()
-        done = False
-        total_reward = 0.0
-
-        while not done:
-            action, _ = model.predict(obs, deterministic=True)
-            obs, reward, terminated, truncated, info = env.step(action)
-
-            if args.real:
-                motor_joints = env._inner.sim.get_qpos()
-                sim_to_real.update_real_robot_position(motor_joints)
-
-            env.render()
-            total_reward += reward
-            done = terminated or truncated
-            if args.delay > 0:
-                time.sleep(args.delay)
-=======
         detector = DetectionModule("../../best.pt", 0.045)
         detection_thread = threading.Thread(target=detection_loop, args=(detector,), daemon=True)
         detection_thread.start()
@@ -223,7 +188,6 @@ if __name__ == "__main__":
                     pos = _latest_cube_pos
                 if pos is not None and args.real:
                     env._inner.sim.set_cube_pose(pos)
->>>>>>> sim_real
 
                 # Show annotated frame from main thread
                 if args.real:
@@ -235,11 +199,6 @@ if __name__ == "__main__":
                 action, _ = model.predict(obs, deterministic=True)
                 obs, reward, terminated, truncated, info = env.step(action)
 
-<<<<<<< HEAD
-    if args.real:
-        sim_to_real.close_real_robot()
-    env.close()
-=======
                 if args.real:
                     motor_joints = env._inner.sim.get_qpos()
                     sim_to_real.update_real_robot_position(motor_joints)
@@ -264,7 +223,6 @@ if __name__ == "__main__":
             sim_to_real.close_real_robot()
             detector.close()
         env.close()
->>>>>>> sim_real
 
     print(f"\n--- {args.env} | {args.algo} | {args.episodes} episodes ---")
     print(f"Reward : {np.mean(rewards):.2f} +/- {np.std(rewards):.2f}")
