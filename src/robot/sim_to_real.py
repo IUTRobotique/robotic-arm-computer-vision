@@ -5,6 +5,8 @@ import numpy
 ADDR_GOAL_POSITION = 30
 LEN_GOAL_POSITION = 2
 ADDR_PRESENT_POS = 37
+ADDR_MOVING_SPEED = 32 # Registre vitesse XL-320
+MOTOR_SPEED = 300
 THRESHOLD_RAW = 10
 PROTOCOL_VERSION = 2.0
 BAUDRATE = 1000000
@@ -41,10 +43,12 @@ def init_real_robot():
     if not portHandler.setBaudRate(BAUDRATE):
         raise RuntimeError(f"Impossible de régler le baudrate")
     for dxl_id in IDS:
-        packetHandler.write1ByteTxRx(portHandler, dxl_id, 24, 1)  # torque ON
+        packetHandler.write1ByteTxRx(portHandler, dxl_id, ADDR_TORQUE_ENABLE, 1)  # torque ON
+        # Limiter la vitesse
+        packetHandler.write2ByteTxRx(portHandler, dxl_id, ADDR_MOVING_SPEED, MOTOR_SPEED)
     for dxl_id in IDS:
         groupSyncRead.addParam(dxl_id)
-    print(f"[OK] Robot initialisé sur {DEVICENAME}")
+        print(f"[OK] Robot initialisé sur {DEVICENAME} (vitesse={MOTOR_SPEED}/1023)")
 
 
 def close_real_robot():
