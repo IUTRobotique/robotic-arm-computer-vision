@@ -1,4 +1,5 @@
 """YoloBliss — Page unique : algo -> env -> mode -> resultats."""
+import glob
 import json
 import os
 import subprocess
@@ -12,6 +13,14 @@ sys.path.insert(0, APP_DIR)
 
 from utils.paths import ALGO_INFO, ENV_NAMES, RUN_EPISODE_SCRIPT, model_path, log_path  # noqa
 from utils.style import inject_css  # noqa
+
+
+ROBOT_DEVICE_PATTERNS = ["/dev/ttyACM*", "/dev/ttyUSB*"]
+
+
+def _robot_connected() -> bool:
+    """Retourne True si un port serie Dynamixel est disponible."""
+    return any(glob.glob(p) for p in ROBOT_DEVICE_PATTERNS)
 
 st.set_page_config(page_title="YoloBliss", layout="wide", initial_sidebar_state="collapsed")
 inject_css()
@@ -44,9 +53,10 @@ def _read_tb_logs(algo_key: str):
         from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
     except ImportError:
         return None
-    runs = sorted(glob.glob(os.path.join(ldir, "*")))
+    runs = sorted(glob.glob(os.path.join(ldir, "*")), key=os.path.getmtime)
     if not runs:
         return None
+    runs = [runs[-1]]  # garder uniquement le run le plus recent
     frames = []
     for run in runs:
         try:
@@ -102,12 +112,6 @@ with col_ctrl:
 
     has_model = os.path.exists(current_model_path)
 
-    env_keys = list(ENV_NAMES.keys())
-    env_labels = [ENV_NAMES[key] for key in env_keys]
-    current_env_index = env_keys.index(st.session_state.env) if st.session_state.env in env_keys else 0
-    env_choice = st.radio("Environnement", env_labels, index=current_env_index)
-    st.session_state.env = env_keys[env_labels.index(env_choice)]
-
     st.markdown("---")
 
     # ── Boutons Réel / Simulé ─────────────────────────────────────────────
@@ -117,7 +121,7 @@ with col_ctrl:
     with btn_reel:
         st.markdown(
             f'<div class="mode-btn reel{disabled_cls}">'
-            '<div class="icon">🤖</div>'
+            '<div class="icon"></div>'
             '<div class="label">Réel</div>'
             '</div>',
             unsafe_allow_html=True,
@@ -132,7 +136,7 @@ with col_ctrl:
     with btn_sim:
         st.markdown(
             '<div class="mode-btn sim">'
-            '<div class="icon">📦</div>'
+            '<div class="icon"></div>'
             '<div class="label">Simulé</div>'
             '</div>',
             unsafe_allow_html=True,
@@ -144,10 +148,15 @@ with col_ctrl:
         )
 
     if reel_clicked:
-        st.session_state.mode = "Robot Reel"
-        st.session_state.running = True
-        st.session_state.result = None
-        st.rerun()
+        if not _robot_connected():
+            st.session_state.result = {"_mode": "reel_error", "error": "Connectez le robot"}
+            st.session_state.running = False
+            st.rerun()
+        else:
+            st.session_state.mode = "Robot Reel"
+            st.session_state.running = True
+            st.session_state.result = None
+            st.rerun()
     if sim_clicked:
         st.session_state.mode = "Simulation"
         st.session_state.running = True
@@ -172,14 +181,14 @@ with col_res:
 
         if mode_key == "Simulation":
             out_dir = tempfile.mkdtemp(prefix="yb_")
-            with st.spinner(f"Simulation : {algo_key}  /  {ENV_NAMES.get(env_key, env_key)} ..."):
+            with st.spinner(f"Simulation en cours — {algo_key}  /  {ENV_NAMES.get(env_key, env_key)} …"):
                 try:
                     proc = subprocess.run(
                         [sys.executable, RUN_EPISODE_SCRIPT,
                          env_key, _main_algo,
                          _mpath if os.path.exists(_mpath) else "none",
                          out_dir, "300"],
-                        capture_output=True, text=True, timeout=180,
+                        capture_output=True, text=True,
                     )
                     _mf = os.path.join(out_dir, "metrics.json")
                     if os.path.exists(_mf):
@@ -191,8 +200,6 @@ with col_res:
                     else:
                         res = {"error": (proc.stderr or proc.stdout or "Erreur inconnue")[:800],
                                "_mode": "sim"}
-                except subprocess.TimeoutExpired:
-                    res = {"error": "Timeout (> 3 min).", "_mode": "sim"}
                 except Exception as e:
                     res = {"error": str(e), "_mode": "sim"}
         else:

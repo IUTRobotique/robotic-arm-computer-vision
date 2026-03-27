@@ -6,7 +6,8 @@ ROBOT_SRC  = os.path.join(ROOT, "src", "robot")
 MODELS_DIR = os.path.join(ROBOT_SRC, "models")
 LOGS_DIR   = os.path.join(ROBOT_SRC, "logs")
 YOLO_MODEL = os.path.join(ROOT, "yolo11n.pt")
-RUN_EPISODE_SCRIPT = os.path.join(os.path.dirname(__file__), "run_sim_episode.py")
+RUN_EPISODE_SCRIPT     = os.path.join(os.path.dirname(__file__), "run_sim_episode.py")
+RUN_INTERACTIVE_SCRIPT = os.path.join(os.path.dirname(__file__), "run_sim_interactive.py")
 
 # Environnements disponibles
 ENV_NAMES = {
