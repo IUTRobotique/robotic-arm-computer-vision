@@ -12,17 +12,14 @@ from __future__ import annotations
 
 import argparse
 import os
-import threading
 import time
 from pathlib import Path
-import cv2
-import sim_to_real
+
 import numpy as np
 from stable_baselines3 import PPO, SAC, TD3
-from detection_module import DetectionModule
+
 from robot_env.reaching_env import ReachingEnv
 from robot_env.push_env import PushEnv
-from robot_env.sliding_env import SlidingEnv
 from robot_env.push_in_hole_env import PushInHoleEnv
 from robot_env.sorting_env import SortingEnv
 
@@ -30,7 +27,6 @@ from robot_env.sorting_env import SortingEnv
 ENVS = {
     "reaching": ReachingEnv,
     "push": PushEnv,
-    "sliding": SlidingEnv,
     "push_in_hole": PushInHoleEnv,
     "sorting": SortingEnv,
 }
@@ -44,21 +40,15 @@ ALGO_CLS = {
     "her": SAC,
 }
 
-_cube_pos_lock = threading.Lock()
-_latest_cube_pos = None
-_stop_detection = threading.Event()
-
 
 # -- Mapping (env, algo) -> dossier de modeles --
 # Convention : models/{algo}_{env}/ ou models/{algo}/ pour les anciens
 def _model_dir(env_name: str, algo: str) -> Path:
     base = Path(os.path.dirname(__file__)) / "models"
-
     # Chercher d'abord le dossier specifique env+algo
     specific = base / f"{algo}_{env_name}"
     if specific.exists():
         return specific
-
     # HER : convention her_sac_{env}
     if algo == "her":
         her_specific = base / f"her_sac_{env_name}"
@@ -68,7 +58,6 @@ def _model_dir(env_name: str, algo: str) -> Path:
         her_default = base / "her_sac"
         if her_default.exists():
             return her_default
-
     # Fallback : dossier algo seul (ancien format)
     return base / algo
 
@@ -104,8 +93,7 @@ def make_eval_env(env_name: str, algo: str, render: bool):
     env_cls = ENVS[env_name]
 
     if algo == "her":
-        # HER necessite le wrapper GoalEnv.
-        # Le checkpoint HER PushInHole historique a été entraîné sur un GoalEnv (obs dict), pas sur PushEnv.
+        # HER necessite le wrapper GoalEnv
         if env_name == "push_in_hole":
             from her_push_in_hole import PushInHoleGoalEnv
             return PushInHoleGoalEnv(render_mode=render_mode)
@@ -113,37 +101,20 @@ def make_eval_env(env_name: str, algo: str, render: bool):
             from her_sorting import SortingGoalEnv
             return SortingGoalEnv(render_mode=render_mode)
         else:
-            # Si tu veux un fallback silencieux sur l'env non-goal, tu peux
-            # remplacer cette ligne par `return env_cls(render_mode=render_mode)`
             raise ValueError(f"HER non supporte pour l'env '{env_name}' (pas de goal)")
 
-    # Pour les autres algo, on renvoie simplement la classe d'env normale
-    return env_cls(render_mode=render_mode)
+    return env_cls(render_mode=render_mode, training=False)
 
 
 def extract_distance(info: dict) -> float:
     """Recupere une metrique de distance disponible dans info."""
-    for key in ("distance", "cube_displacement", "dist_cube_hole", "dist_cube_goal", "dist_cylinder_goal"):
+    for key in ("distance", "cube_displacement", "dist_cube_marker", "dist_cube_hole", "dist_cube_goal", "dist_cylinder_goal"):
         if key in info:
             return float(info[key])
     return float("nan")
 
 
-def detection_loop(detector):
-    global _latest_cube_pos
-    while not _stop_detection.is_set():
-        result = detector.get_positions(show_preview=False)
-        if result and len(result) > 0:
-            pos = np.array(result[0].get('position_m'), dtype=np.float32)
-            pos[0] -= 0.0
-            pos[1] -= 0.0
-            pos[2] = 0.0
-            with _cube_pos_lock:
-                _latest_cube_pos = pos
-
-
-def parse_args():
-    """Parse command line arguments."""
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test des modeles entraines")
     parser.add_argument("--env", required=True, choices=list(ENVS.keys()),
                         help="Environnement a tester")
@@ -156,12 +127,7 @@ def parse_args():
                         help="Affiche MuJoCo en temps reel")
     parser.add_argument("--real", action="store_true",
                         help="Active le sim-to-real (robot physique)")
-    return parser.parse_args()
-
-
-if __name__ == "__main__":
-
-    args = parse_args()
+    args = parser.parse_args()
 
     env = make_eval_env(args.env, args.algo, args.render)
     model_path = resolve_model_path(args.env, args.algo)
@@ -171,58 +137,39 @@ if __name__ == "__main__":
     rewards, successes, distances = [], [], []
 
     if args.real:
+        import sim_to_real
         sim_to_real.init_real_robot()
-        detector = DetectionModule("../../best.pt", 0.045)
-        detection_thread = threading.Thread(target=detection_loop, args=(detector,), daemon=True)
-        detection_thread.start()
 
-    try:
-        for ep in range(args.episodes):
-            obs, _ = env.reset()
-            done = False
-            total_reward = 0.0
+    for ep in range(args.episodes):
+        obs, _ = env.reset()
+        done = False
+        total_reward = 0.0
 
-            while not done:
-                # Just read the latest position, non-blocking
-                with _cube_pos_lock:
-                    pos = _latest_cube_pos
-                if pos is not None and args.real:
-                    env._inner.sim.set_cube_pose(pos)
+        while not done:
+            action, _ = model.predict(obs, deterministic=True)
+            obs, reward, terminated, truncated, info = env.step(action)
 
-                # Show annotated frame from main thread
-                if args.real:
-                    frame = detector.get_last_frame()
-                    if frame is not None:
-                        cv2.imshow('Detection 3D', frame)
-                cv2.waitKey(1)
+            if args.real:
+                motor_joints = env._inner.sim.get_qpos()
+                sim_to_real.update_real_robot_position(motor_joints)
 
-                action, _ = model.predict(obs, deterministic=True)
-                obs, reward, terminated, truncated, info = env.step(action)
+            env.render()
+            total_reward += reward
+            done = terminated or truncated
+            if args.delay > 0:
+                time.sleep(args.delay)
 
-                if args.real:
-                    motor_joints = env._inner.sim.get_qpos()
-                    sim_to_real.update_real_robot_position(motor_joints)
+        rewards.append(total_reward)
+        successes.append(info.get("is_success", False))
+        dist_value = extract_distance(info)
+        distances.append(dist_value)
 
-                env.render()
-                total_reward += reward
-                done = terminated or truncated
-                if args.delay > 0:
-                    time.sleep(args.delay)
+        print(f"Ep {ep + 1:3d}: reward={total_reward:7.2f}  "
+              f"success={info.get('is_success', False)}  dist={dist_value:.4f}")
 
-            rewards.append(total_reward)
-            successes.append(info.get("is_success", False))
-            dist_value = extract_distance(info)
-            distances.append(dist_value)
-
-            print(f"Ep {ep + 1:3d}: reward={total_reward:7.2f}  "
-                  f"success={info.get('is_success', False)}  dist={dist_value:.4f}")
-    finally:
-        _stop_detection.set()
-        if args.real:
-            detection_thread.join(timeout=3)
-            sim_to_real.close_real_robot()
-            detector.close()
-        env.close()
+    if args.real:
+        sim_to_real.close_real_robot()
+    env.close()
 
     print(f"\n--- {args.env} | {args.algo} | {args.episodes} episodes ---")
     print(f"Reward : {np.mean(rewards):.2f} +/- {np.std(rewards):.2f}")
