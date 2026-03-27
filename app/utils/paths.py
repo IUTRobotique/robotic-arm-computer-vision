@@ -5,9 +5,8 @@ ROOT       = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")
 ROBOT_SRC  = os.path.join(ROOT, "src", "robot")
 MODELS_DIR = os.path.join(ROBOT_SRC, "models")
 LOGS_DIR   = os.path.join(ROBOT_SRC, "logs")
-YOLO_MODEL = os.path.join(ROOT, "yolo11n.pt")
-RUN_EPISODE_SCRIPT     = os.path.join(os.path.dirname(__file__), "run_sim_episode.py")
-RUN_INTERACTIVE_SCRIPT = os.path.join(os.path.dirname(__file__), "run_sim_interactive.py")
+YOLO_MODEL  = os.path.join(ROOT, "yolo11n.pt")
+MAIN_SCRIPT = os.path.join(ROBOT_SRC, "main.py")
 
 # Environnements disponibles
 ENV_NAMES = {
@@ -22,7 +21,7 @@ ENV_NAMES = {
 ALGO_INFO = {
     "SAC — Reaching": {
         "env":         "reaching",
-        "model_dir":   "sac",
+        "model_dir":   "sac_reaching",
         "model_file":  "best_model.zip",
         "algo_class":  "SAC",
         "main_algo":   "sac",
@@ -71,7 +70,7 @@ ALGO_INFO = {
     },
     "SAC+HER — Push-in-Hole": {
         "env":         "push_in_hole",
-        "model_dir":   "her_sac_1st_working_push_in_hole",
+        "model_dir":   "her",
         "model_file":  "best_model.zip",
         "algo_class":  "SAC",
         "main_algo":   "her",

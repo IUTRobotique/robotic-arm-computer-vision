@@ -1,26 +1,17 @@
 """YoloBliss — Page unique : algo -> env -> mode -> resultats."""
 import glob
-import json
 import os
 import subprocess
 import sys
-import tempfile
 
 import streamlit as st
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, APP_DIR)
 
-from utils.paths import ALGO_INFO, ENV_NAMES, RUN_EPISODE_SCRIPT, model_path, log_path  # noqa
+from utils.paths import ALGO_INFO, ENV_NAMES, MAIN_SCRIPT, ROBOT_SRC, model_path, log_path  # noqa
 from utils.style import inject_css  # noqa
 
-
-ROBOT_DEVICE_PATTERNS = ["/dev/ttyACM*", "/dev/ttyUSB*"]
-
-
-def _robot_connected() -> bool:
-    """Retourne True si un port serie Dynamixel est disponible."""
-    return any(glob.glob(p) for p in ROBOT_DEVICE_PATTERNS)
 
 st.set_page_config(page_title="YoloBliss", layout="wide", initial_sidebar_state="collapsed")
 inject_css()
@@ -224,15 +215,10 @@ with col_ctrl:
         )
 
     if reel_clicked:
-        if not _robot_connected():
-            st.session_state.result = {"_mode": "reel_error", "error": "Connectez le robot"}
-            st.session_state.running = False
-            st.rerun()
-        else:
-            st.session_state.mode = "Robot Reel"
-            st.session_state.running = True
-            st.session_state.result = None
-            st.rerun()
+        st.session_state.mode = "Robot Reel"
+        st.session_state.running = True
+        st.session_state.result = None
+        st.rerun()
     if sim_clicked:
         st.session_state.mode = "Simulation"
         st.session_state.running = True
@@ -254,32 +240,27 @@ with col_res:
         _mpath    = model_path(algo_key)
 
         _main_algo = ALGO_INFO[algo_key]["main_algo"]
+        _cmd_base  = [sys.executable, MAIN_SCRIPT,
+                      "--env", env_key, "--algo", _main_algo, "--render"]
 
         if mode_key == "Simulation":
-            out_dir = tempfile.mkdtemp(prefix="yb_")
-            with st.spinner(f"Simulation en cours — {algo_key}  /  {ENV_NAMES.get(env_key, env_key)} …"):
+            cmd = _cmd_base
+            with st.spinner(f"Simulation lancee — {algo_key}  /  {ENV_NAMES.get(env_key, env_key)} …"):
                 try:
-                    proc = subprocess.run(
-                        [sys.executable, RUN_EPISODE_SCRIPT,
-                         env_key, _main_algo,
-                         out_dir, "300"],
-                        capture_output=True, text=True,
-                    )
-                    _mf = os.path.join(out_dir, "metrics.json")
-                    if os.path.exists(_mf):
-                        with open(_mf) as _f:
-                            res = json.load(_f)
-                        res["_algo"] = algo_key
-                        res["_env"]  = env_key
-                        res["_mode"] = "sim"
-                    else:
-                        res = {"error": (proc.stderr or proc.stdout or "Erreur inconnue")[:800],
-                               "_mode": "sim"}
+                    subprocess.Popen(cmd, cwd=ROBOT_SRC)
+                    res = {"_mode": "sim", "_algo": algo_key, "_env": env_key,
+                           "_cmd": " ".join(cmd)}
                 except Exception as e:
                     res = {"error": str(e), "_mode": "sim"}
         else:
-            res = {"_mode": "reel", "_algo": algo_key, "_env": env_key,
-                   "_mpath": _mpath, "_main_algo": _main_algo}
+            cmd = _cmd_base + ["--real"]
+            with st.spinner(f"Robot reel lance — {algo_key}  /  {ENV_NAMES.get(env_key, env_key)} …"):
+                try:
+                    subprocess.Popen(cmd, cwd=ROBOT_SRC)
+                    res = {"_mode": "reel", "_algo": algo_key, "_env": env_key,
+                           "_cmd": " ".join(cmd)}
+                except Exception as e:
+                    res = {"error": str(e), "_mode": "reel"}
 
         st.session_state.result  = res
         st.session_state.running = False
@@ -303,52 +284,16 @@ with col_res:
         st.error(result["error"])
 
     elif result.get("_mode") == "sim":
-        # ── Resultat simulation ───────────────────────────────────────────────
-        vpath = result.get("video_path", "")
-        if vpath and os.path.exists(vpath):
-            st.video(vpath)
-
-        _reward  = result.get("total_reward")
-        _steps   = result.get("n_steps")
-        _success = result.get("is_success")
-        _dist    = result.get("distance")
-        _sc_str  = "Oui" if _success else "Non" if _success is not None else "—"
         _env_lbl = ENV_NAMES.get(result.get("_env", ""), result.get("_env", "—"))
-        _mdl_lbl = "Aleatoire" if result.get("model") == "random" else os.path.basename(result.get("model", "—"))
-
-        metric_a, metric_b, metric_c, metric_d = st.columns(4)
-        metric_a.metric("Recompense totale", f"{_reward:.3f}" if isinstance(_reward, float) else "—")
-        metric_b.metric("Etapes", _steps if _steps is not None else "—")
-        metric_c.metric("Succes", _sc_str)
-        metric_d.metric("Distance", f"{_dist:.4f}" if _dist is not None else "—")
-
-        st.write(f"Algorithme : {result.get('_algo', '—')}")
-        st.write(f"Environnement : {_env_lbl}")
-        st.write(f"Modele : {_mdl_lbl}")
-
-        # Afficher aussi la courbe d'entrainement en dessous
+        st.success(f"Simulation lancee : {result.get('_algo', '')}  /  {_env_lbl}")
+        st.code(result.get("_cmd", ""), language="bash")
         _render_training_charts(result.get("_algo", ""), height=320)
 
     elif result.get("_mode") == "reel":
-        # ── Mode robot reel ───────────────────────────────────────────────────
-        _mpath = result.get("_mpath", "")
-        _mok   = os.path.exists(_mpath)
         _env_lbl = ENV_NAMES.get(result.get("_env", ""), result.get("_env", "—"))
-
-        st.write(f"Algorithme : {result.get('_algo', '—')}")
-        st.write(f"Environnement : {_env_lbl}")
-        st.write(f"Modele : {'Disponible' if _mok else 'Absent'}")
-
-        _main_algo = result.get("_main_algo", "sac")
-        _env_key   = result.get("_env", "reaching")
-        if _mok:
-            st.info(
-                "Pour executer sur le robot reel, lancez dans un terminal :\n\n"
-                f"```bash\ncd {os.path.join(os.path.dirname(APP_DIR))}\n"
-                f"python src/robot/main.py --env {_env_key} --algo {_main_algo} --render --real\n```"
-            )
-        else:
-            st.warning(
-                f"Modele introuvable :\n`{_mpath}`\n\n"
-                "Entrainez d'abord le modele avec les scripts dans `src/robot/`."
-            )
+        _mok = os.path.exists(model_path(result.get("_algo", "")))
+        st.success(f"Commande robot reel : {result.get('_algo', '')}  /  {_env_lbl}")
+        st.code(result.get("_cmd", ""), language="bash")
+        if not _mok:
+            st.warning("Modele introuvable — le robot utilisera une politique aleatoire.")
+        _render_training_charts(result.get("_algo", ""), height=320)
