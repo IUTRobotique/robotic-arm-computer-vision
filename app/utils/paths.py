@@ -13,13 +13,14 @@ RUN_INTERACTIVE_SCRIPT = os.path.join(os.path.dirname(__file__), "run_sim_intera
 ENV_NAMES = {
     "reaching":     "Reaching — Atteindre une cible 3D",
     "push":         "Push — Pousser un objet vers une cible",
+    "sliding":      "Sliding — Frapper et faire glisser le cube",
     "push_in_hole": "Push-in-Hole — Pousser dans un trou",
     "sorting":      "Sorting — Trier les objets",
 }
 
 # Algorithmes disponibles  (model_file peut etre best_model.zip ou *_final.zip)
 ALGO_INFO = {
-    "SAC": {
+    "SAC — Reaching": {
         "env":         "reaching",
         "model_dir":   "sac",
         "model_file":  "best_model.zip",
@@ -28,6 +29,16 @@ ALGO_INFO = {
         "log_dir":     "sac",
         "color":       "sac",
         "description": "Soft Actor-Critic. Off-policy, maximise recompense + entropie. Converge rapidement sur des espaces continus.",
+    },
+    "SAC — Sliding": {
+        "env":         "sliding",
+        "model_dir":   "sac_sliding",
+        "model_file":  "best_model.zip",
+        "algo_class":  "SAC",
+        "main_algo":   "sac",
+        "log_dir":     "sac_sliding",
+        "color":       "sac",
+        "description": "SAC sur la tache Sliding : frapper le cube et le faire glisser par inertie.",
     },
     "PPO": {
         "env":         "push_in_hole",
@@ -60,7 +71,7 @@ ALGO_INFO = {
     },
     "SAC+HER — Push-in-Hole": {
         "env":         "push_in_hole",
-        "model_dir":   "her_sac",
+        "model_dir":   "her_sac_1st_working_push_in_hole",
         "model_file":  "best_model.zip",
         "algo_class":  "SAC",
         "main_algo":   "her",

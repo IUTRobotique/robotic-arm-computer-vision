@@ -43,7 +43,12 @@ def _pick_algo(name: str) -> None:
 
 
 def _read_tb_logs(algo_key: str):
-    """Lit les logs tensorboard SB3 et retourne un DataFrame {step, reward}."""
+    """Lit les logs TensorBoard SB3.
+    Retourne {"reward": DataFrame, "success": DataFrame|None} ou None.
+    - reward  : eval/mean_reward  > rollout/ep_rew_mean
+    - success : eval/success_rate > rollout/success_rate
+    Seul le run le plus recent non-vide est utilise.
+    """
     import glob
     import pandas as pd
     ldir = log_path(algo_key)
@@ -53,28 +58,99 @@ def _read_tb_logs(algo_key: str):
         from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
     except ImportError:
         return None
-    runs = sorted(glob.glob(os.path.join(ldir, "*")), key=os.path.getmtime)
+    runs = sorted(
+        [r for r in glob.glob(os.path.join(ldir, "*")) if os.path.isdir(r)],
+        key=os.path.getmtime,
+        reverse=True,
+    )
     if not runs:
         return None
-    runs = [runs[-1]]  # garder uniquement le run le plus recent
-    frames = []
     for run in runs:
         try:
             ea = EventAccumulator(run, size_guidance={"scalars": 0})
             ea.Reload()
             tags = ea.Tags().get("scalars", [])
-            tag  = next((t for t in ("rollout/ep_rew_mean", "train/reward") if t in tags), None)
-            if tag is None:
+            rew_tag = next((t for t in ("eval/mean_reward", "rollout/ep_rew_mean", "train/reward") if t in tags), None)
+            if rew_tag is None:
                 continue
-            events = ea.Scalars(tag)
-            run_name = os.path.basename(run)
-            for e in events:
-                frames.append({"run": run_name, "step": e.step, "reward": e.value})
+            df_rew = pd.DataFrame(
+                [{"step": e.step, "value": e.value} for e in ea.Scalars(rew_tag)]
+            ).sort_values("step")
+            suc_tag = next((t for t in ("eval/success_rate", "rollout/success_rate") if t in tags), None)
+            df_suc = None
+            if suc_tag:
+                df_suc = pd.DataFrame(
+                    [{"step": e.step, "value": e.value} for e in ea.Scalars(suc_tag)]
+                ).sort_values("step")
+            return {"reward": df_rew, "success": df_suc}
         except Exception:
             continue
-    if not frames:
-        return None
-    return pd.DataFrame(frames)
+    return None
+
+
+def _render_training_charts(algo_key: str, height: int = 380) -> bool:
+    """Affiche les courbes d'entrainement (recompense + taux de succes).
+    Retourne True si des donnees ont ete trouvees.
+    """
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+
+    logs = _read_tb_logs(algo_key)
+    if logs is None:
+        return False
+
+    df_rew = logs["reward"]
+    df_suc = logs["success"]
+    has_success = df_suc is not None and not df_suc.empty
+
+    ncols = 2 if has_success else 1
+    subplot_titles = ["Recompense moyenne (lissee)"]
+    if has_success:
+        subplot_titles.append("Taux de succes")
+
+    fig = make_subplots(rows=1, cols=ncols, subplot_titles=subplot_titles)
+
+    smooth_rew = df_rew["value"].rolling(10, min_periods=1).mean()
+    fig.add_trace(go.Scatter(
+        x=df_rew["step"], y=df_rew["value"],
+        mode="lines", line=dict(width=1, color="rgba(76,184,255,0.25)"),
+        showlegend=False, hoverinfo="skip",
+    ), row=1, col=1)
+    fig.add_trace(go.Scatter(
+        x=df_rew["step"], y=smooth_rew,
+        mode="lines", name="Recompense", line=dict(width=2.5, color="#4cb8ff"),
+        showlegend=False,
+    ), row=1, col=1)
+
+    if has_success:
+        smooth_suc = df_suc["value"].rolling(5, min_periods=1).mean()
+        fig.add_trace(go.Scatter(
+            x=df_suc["step"], y=df_suc["value"],
+            mode="lines", line=dict(width=1, color="rgba(74,222,128,0.25)"),
+            showlegend=False, hoverinfo="skip",
+        ), row=1, col=2)
+        fig.add_trace(go.Scatter(
+            x=df_suc["step"], y=smooth_suc,
+            mode="lines", name="Succes", line=dict(width=2.5, color="#4ade80"),
+            showlegend=False,
+        ), row=1, col=2)
+        fig.update_yaxes(range=[0, 1], tickformat=".0%", row=1, col=2)
+
+    fig.update_layout(
+        title=f"Entrainement — {algo_key}",
+        template="plotly_dark",
+        paper_bgcolor="#0d1117",
+        plot_bgcolor="#0d1117",
+        height=height,
+        margin=dict(l=20, r=20, t=50, b=20),
+    )
+    fig.update_xaxes(title_text="Steps")
+    fig.update_yaxes(title_text="Recompense", row=1, col=1)
+    if has_success:
+        fig.update_yaxes(title_text="Taux de succes", row=1, col=2)
+
+    st.plotly_chart(fig, use_container_width=True)
+    return True
 
 
 st.title("YoloBliss")
@@ -217,30 +293,8 @@ with col_res:
         # Etat initial : afficher courbes de logs si algo deja choisi
         selected_algo = st.session_state.algo
         if selected_algo:
-            df_logs = _read_tb_logs(selected_algo)
-            if df_logs is not None:
-                import plotly.graph_objects as go
-                fig = go.Figure()
-                for run_name in df_logs["run"].unique():
-                    sub = df_logs[df_logs["run"] == run_name]
-                    fig.add_trace(go.Scatter(
-                        x=sub["step"], y=sub["reward"],
-                        mode="lines", name=run_name,
-                        line=dict(width=1.5),
-                    ))
-                fig.update_layout(
-                    title=f"Courbe d'entrainement — {selected_algo}",
-                    xaxis_title="Steps",
-                    yaxis_title="Recompense moyenne",
-                    template="plotly_dark",
-                    paper_bgcolor="#0d1117",
-                    plot_bgcolor="#0d1117",
-                    height=420,
-                    legend=dict(font=dict(size=10)),
-                    margin=dict(l=20, r=20, t=40, b=20),
-                )
-                st.plotly_chart(fig, width="stretch")
-            else:
+            found = _render_training_charts(selected_algo, height=420)
+            if not found:
                 st.info("Aucun log d'entrainement disponible pour cet algorithme.")
                 st.write("Appuyez sur Lancer pour demarrer une simulation.")
         else:
@@ -274,25 +328,7 @@ with col_res:
         st.write(f"Modele : {_mdl_lbl}")
 
         # Afficher aussi la courbe d'entrainement en dessous
-        df_logs = _read_tb_logs(result.get("_algo", ""))
-        if df_logs is not None:
-            import plotly.graph_objects as go
-            fig2 = go.Figure()
-            for run_name in df_logs["run"].unique():
-                sub = df_logs[df_logs["run"] == run_name]
-                fig2.add_trace(go.Scatter(
-                    x=sub["step"], y=sub["reward"],
-                    mode="lines", name=run_name, line=dict(width=1.5),
-                ))
-            fig2.update_layout(
-                title=f"Courbe d'entrainement — {result.get('_algo','')}",
-                xaxis_title="Steps", yaxis_title="Recompense",
-                template="plotly_dark",
-                paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
-                height=320, margin=dict(l=20, r=20, t=36, b=20),
-                legend=dict(font=dict(size=9)),
-            )
-            st.plotly_chart(fig2, width="stretch")
+        _render_training_charts(result.get("_algo", ""), height=320)
 
     elif result.get("_mode") == "reel":
         # ── Mode robot reel ───────────────────────────────────────────────────

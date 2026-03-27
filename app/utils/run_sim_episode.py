@@ -47,6 +47,7 @@ def _make_env(env_name: str, algo: str):
     mapping = {
         "reaching":     ("robot_env.reaching_env",    "ReachingEnv"),
         "push":         ("robot_env.push_env",         "PushEnv"),
+        "sliding":      ("robot_env.sliding_env",      "SlidingEnv"),
         "push_in_hole": ("robot_env.push_in_hole_env", "PushInHoleEnv"),
         "sorting":      ("robot_env.sorting_env",      "SortingEnv"),
     }
